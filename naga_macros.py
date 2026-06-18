@@ -472,8 +472,8 @@ def main():
     def _set_active(active):
         if _HAS_TRAY and _icon[0] is not None:
             _icon[0].icon  = _ICON_ACTIVE if active else _ICON_WAITING
-            _icon[0].title = ("Naga Macros — activo"
-                              if active else "Naga Macros — esperando ratón")
+            _icon[0].title = ("Naga Macros - activo"
+                              if active else "Naga Macros - esperando raton")
 
     def _worker():
         while _alive[0]:
@@ -505,6 +505,7 @@ def main():
                         pass
                     _app[0] = None
             if _disconnect:
+                _set_active(False)
                 print("\nDispositivo desconectado. Esperando reconexion...")
                 _wait_for_naga()
                 print("Dispositivo encontrado, reiniciando...")
@@ -534,7 +535,7 @@ def main():
         icon = pystray.Icon(
             "naga-macros",
             _ICON_WAITING,
-            "Naga Macros — esperando ratón",
+            "Naga Macros - esperando raton",
             menu=pystray.Menu(
                 pystray.MenuItem("Reiniciar", _on_restart),
                 pystray.MenuItem("Salir",     _on_quit),
