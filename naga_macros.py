@@ -47,6 +47,7 @@
 import os
 import sys
 import signal
+import subprocess
 from select import select
 from time import monotonic
 
@@ -57,8 +58,8 @@ from evdev import InputDevice, UInput, ecodes as e, list_devices
 # Solo se "capturan" los dispositivos cuyo nombre contenga esto:
 DEVICE_NAME_CONTAINS = "naga"
 
-# Ruta de la imagen-guia de atajos (cambiala a donde la tengas en Linux):
-IMAGE_PATH = os.path.expanduser("~/Imagenes/NagaV2_atajos.png")
+# Ruta de la imagen-guia de atajos (junto al script, igual que en AHK):
+IMAGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "NagaV2_atajos.png")
 
 # Tiempo (segundos) que el selector Alt+Tab sigue abierto sin pulsar:
 ALTTAB_TIMEOUT = 0.8
@@ -66,8 +67,18 @@ ALTTAB_TIMEOUT = 0.8
 # Anti-repeticion del tilt (copiar/pegar/pista). Segundos:
 TILT_DEBOUNCE = 0.40
 
-# Cuanto sube/baja el volumen y el zoom por cada paso de rueda:
+# Cuanto sube/baja el volumen por cada paso de rueda:
 WHEEL_STEPS = 2
+
+# Cuanto aumenta/reduce el zoom por cada paso de rueda:
+ZOOM_STEPS = 1
+
+# Comando para abrir el historial del portapapeles (HS2 + clic derecho).
+# Requiere un gestor instalado. Ejemplos:
+#   ["copyq", "toggle"]
+#   ["gpaste-client", "show-history"]
+# Dejar vacío [] para deshabilitar (evita que Super+V abra el panel de GNOME):
+PORTAPAPELES_CMD = []
 # -----------------------------------------------
 
 
@@ -100,6 +111,7 @@ class NagaMacros:
             e.KEY_LEFTALT, e.KEY_LEFTCTRL, e.KEY_LEFTSHIFT, e.KEY_LEFTMETA,
             e.KEY_TAB, e.KEY_F11, e.KEY_Q, e.KEY_C, e.KEY_V,
             e.KEY_EQUAL, e.KEY_MINUS,
+            e.KEY_KPPLUS, e.KEY_KPMINUS,
             e.KEY_VOLUMEUP, e.KEY_VOLUMEDOWN,
             e.KEY_PLAYPAUSE, e.KEY_NEXTSONG, e.KEY_PREVIOUSSONG,
             e.BTN_LEFT, e.BTN_RIGHT, e.BTN_MIDDLE,
@@ -141,8 +153,12 @@ class NagaMacros:
 
         for d in named:
             self.read_devs.append(d)
-            rel = d.capabilities().get(e.EV_REL, [])
-            if e.REL_X in rel:           # es la interfaz de raton -> capturar
+            caps = d.capabilities()
+            rel  = caps.get(e.EV_REL, [])
+            keys = caps.get(e.EV_KEY, [])
+            # grabar tanto la interfaz de raton (REL_X) como la de teclado macro
+            # (F13); sin grab las F-keys pasan al sistema y GNOME las interpreta
+            if e.REL_X in rel or e.KEY_F13 in keys:
                 self.grab_devs.append(d)
 
         for d in self.grab_devs:
@@ -203,7 +219,8 @@ class NagaMacros:
         elif n == 3:                     # selector ->
             self.alttab(forward=True)
         elif n == 5:                     # abrir guia de atajos
-            os.system(f'xdg-open "{IMAGE_PATH}" &')
+            subprocess.Popen(["xdg-open", IMAGE_PATH],
+                             close_fds=True, start_new_session=True)
         elif n == 7:                     # pantalla completa
             self.tap(e.KEY_F11)
         elif n == 12:                    # overview (tecla Super)
@@ -213,11 +230,12 @@ class NagaMacros:
     # ---------- bucle principal ----------
     def run(self):
         fds = {d.fd: d for d in self.read_devs}
+        fd_list = list(fds)   # inmutable durante el bucle
         while True:
             timeout = None
             if self.alttab_open:
                 timeout = max(0.0, self.alttab_deadline - monotonic())
-            r, _, _ = select(list(fds), [], [], timeout)
+            r, _, _ = select(fd_list, [], [], timeout)
 
             if self.alttab_open and monotonic() >= self.alttab_deadline:
                 self.alttab_close()
@@ -257,7 +275,10 @@ class NagaMacros:
                 if ev.code == e.BTN_MIDDLE and self.hyper2:
                     self.tap(e.KEY_LEFTCTRL, e.KEY_Q); return
                 if ev.code == e.BTN_RIGHT and self.hyper2:
-                    self.tap(e.KEY_LEFTMETA, e.KEY_V); return
+                    if PORTAPAPELES_CMD:
+                        subprocess.Popen(PORTAPAPELES_CMD,
+                                         close_fds=True, start_new_session=True)
+                    return
             # sin hypershift: clic normal -> reenviar
             if grabbed:
                 self.ui.write(ev.type, ev.code, ev.value)
@@ -268,12 +289,13 @@ class NagaMacros:
             if self.hyper1 or self.hyper2:
                 if ev.code == e.REL_WHEEL:   # solo el de baja-res dispara
                     up = ev.value > 0
-                    for _ in range(WHEEL_STEPS):
-                        if self.hyper1:
+                    if self.hyper1:
+                        for _ in range(WHEEL_STEPS):
                             self.tap(e.KEY_VOLUMEUP if up else e.KEY_VOLUMEDOWN)
-                        else:  # hyper2 -> zoom
-                            self.tap(e.KEY_LEFTCTRL,
-                                     e.KEY_EQUAL if up else e.KEY_MINUS)
+                    else:  # hyper2 -> zoom (KP+/KP- son layout-independientes)
+                        key = e.KEY_KPPLUS if up else e.KEY_KPMINUS
+                        for _ in range(ZOOM_STEPS):
+                            self.tap(e.KEY_LEFTCTRL, key)
                 return                        # suprime el scroll normal
             if grabbed:                       # scroll normal -> reenviar
                 self.ui.write(ev.type, ev.code, ev.value)
@@ -320,6 +342,15 @@ class NagaMacros:
 
 
 def main():
+    # SCHED_FIFO prioridad 10: el kernel no interrumpe este proceso mientras
+    # procesa eventos de entrada, reduciendo la latencia de respuesta.
+    # Requiere root (o CAP_SYS_NICE), que ya se necesita para evdev/uinput.
+    try:
+        os.sched_setscheduler(0, os.SCHED_FIFO, os.sched_param(10))
+        print("Scheduling: SCHED_FIFO prio=10")
+    except Exception as ex:
+        print(f"Aviso: no se pudo establecer prioridad en tiempo real: {ex}")
+
     app = NagaMacros()
 
     def stop(*_):

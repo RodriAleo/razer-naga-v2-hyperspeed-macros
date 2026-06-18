@@ -112,7 +112,7 @@ sudo apt install python3-evdev      # o:  pip install evdev
 ### Configuración
 Edita las constantes al principio de `naga_macros.py`:
 
-- `IMAGE_PATH` → ruta de la guía de atajos en Linux (p. ej. `~/Imagenes/NagaV2_atajos.png`).
+- `IMAGE_PATH` → por defecto apunta a `NagaV2_atajos.png` junto al script (igual que en Windows). Solo cámbialo si la imagen está en otra ubicación.
 - `DEVICE_NAME_CONTAINS` → texto del nombre del ratón (por defecto `"naga"`).
 - `ALTTAB_TIMEOUT`, `TILT_DEBOUNCE`, `WHEEL_STEPS` → ajustes finos.
 
@@ -161,9 +161,10 @@ systemctl --user enable --now naga-macros.service
 
 | Atajo | Windows | Linux (notas) |
 |-------|---------|---------------|
-| Portapapeles (HS2 + clic derecho) | `Win+V` nativo | `Super+V` **no** es nativo; requiere un gestor (GPaste / CopyQ) con ese atajo |
+| Portapapeles (HS2 + clic derecho) | `Win+V` nativo | `Super+V` en GNOME 44+ abre notificaciones. Configurar `PORTAPAPELES_CMD` en `naga_macros.py` con tu gestor (ej. `["copyq", "toggle"]`) |
 | Vista de tareas (Botón 12) | `Win+Tab` | Tecla **Super** (Actividades de GNOME) |
 | `Ctrl+Q` (capturas) | Tu software de capturas | Asegúrate de que tu app de capturas en Linux use el mismo atajo |
+| **Tilt derecha** (HS1 = pista siguiente, HS2 = pegar) | Funciona | **No disponible en Linux** — el firmware reporta tilt derecha como scroll arriba (`REL_WHEEL +1`), indistinguible de girar la rueda. En hypershift, tilt derecha = mismo efecto que scroll arriba (volumen / zoom in). Solución: reconfigurar el tilt en Razer Synapse (Windows) para que envíe una tecla personalizada. |
 
 ---
 

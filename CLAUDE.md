@@ -67,7 +67,7 @@ Luego, si procede: `git add . && git commit`.
 | Tecla suelta | `Send("{F11}")` | `self.tap(e.KEY_F11)` |
 | Tecla multimedia | `Send("{Media_Next}")` | `self.tap(e.KEY_NEXTSONG)` |
 | Volumen | `Send("{Volume_Up}")` | `self.tap(e.KEY_VOLUMEUP)` |
-| Abrir archivo/app | `Run(...)` | `os.system('xdg-open ... &')` |
+| Abrir archivo/app | `Run(...)` | `subprocess.Popen(["xdg-open", ruta], close_fds=True, start_new_session=True)` |
 | Modificadores | `^`=Ctrl `!`=Alt `+`=Shift `#`=Win | `KEY_LEFTCTRL/LEFTALT/LEFTSHIFT/LEFTMETA` |
 
 ---
@@ -93,14 +93,42 @@ Luego, si procede: `git add . && git commit`.
 - **Botón 5 / ruta de la imagen:**
   - Windows: `Run(A_ScriptDir . "\NagaV2_atajos.png")` — la imagen debe estar
     junto al `.ahk`. Si se renombra la imagen, actualizar esta línea.
-  - Linux: constante `IMAGE_PATH` al inicio de `naga_macros.py`.
+  - Linux: `IMAGE_PATH` se calcula con `os.path.dirname(os.path.abspath(__file__))`
+    para ser siempre relativa al directorio del script, sin importar desde dónde
+    se arranque.
+- **Grab de dispositivos en Linux (crítico):**
+  El Naga V2 HS aparece como **5 interfaces** separadas en `/dev/input/`:
+  `Mouse`, `Keyboard`, `Naga V2 HS`, `System Control`, `Consumer Control`.
+  El script graba (grab) las que tienen `REL_X` (interfaz Mouse) **y** las que
+  tienen `KEY_F13` (interfaz Keyboard). Sin grab del Keyboard, las teclas F13–F24
+  pasan al sistema y GNOME puede reaccionar a ellas (p. ej. abrir configuración
+  de Bluetooth). Las otras 3 interfaces no se graban.
+- **Zoom en Linux — usar teclas de numpad:**
+  `Ctrl+KEY_EQUAL` y `Ctrl+KEY_MINUS` pasan por el keymap del compositor. En
+  layouts no-US producen caracteres inesperados (ej. `^[` = ESC en layout
+  español). Usar `Ctrl+KEY_KPPLUS` / `Ctrl+KEY_KPMINUS`: las teclas de numpad
+  son layout-independientes y funcionan en Firefox, GNOME Terminal y apps GTK.
+  Recordar declarar `KEY_KPPLUS` y `KEY_KPMINUS` en el `UInput(...)`.
+- **Prioridad de scheduling en Linux:**
+  El script llama `os.sched_setscheduler(0, os.SCHED_FIFO, os.sched_param(10))`
+  al arrancar (requiere root). Reduce la latencia de respuesta evitando que el
+  kernel desaloje el proceso mientras procesa un evento de entrada.
 
 ## Diferencias de plataforma a recordar
 
 - **Portapapeles (HS2 + clic derecho):** en Windows es `Win+V` nativo; en Linux
-  `Super+V` **no** hace nada sin un gestor (GPaste/CopyQ) configurado.
+  `Super+V` en GNOME 44+ abre el panel de notificaciones (no el portapapeles).
+  Usar la constante `PORTAPAPELES_CMD` en `naga_macros.py` para configurar el
+  gestor instalado (ej. `["copyq", "toggle"]`).
 - **Botón 12:** Windows `Win+Tab` (Task View); Linux tecla **Super** (overview GNOME).
 - **Ctrl+Q (capturas):** asume el mismo atajo en la app de capturas de cada SO.
+- **Tilt derecha (HS1 = pista siguiente / HS2 = pegar) — LIMITACIÓN LINUX:**
+  El firmware del Naga V2 HS reporta tilt derecha como `REL_WHEEL +1` (rueda
+  vertical arriba), idéntico a scroll arriba. No se puede distinguir en software.
+  En Linux, tilt derecha actúa igual que scroll arriba (volumen / zoom in).
+  Las funciones "pista siguiente" y "pegar vía tilt" están **perdidas en Linux**
+  a menos que se reconfigure el tilt en Razer Synapse (Windows) para que mande
+  una tecla personalizada en vez de scroll.
 
 ## Autoarranque
 
