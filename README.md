@@ -47,7 +47,7 @@ Correspondencia botón → tecla:
 | **2** | Selector Alt+Tab persistente — ventana **anterior** |
 | **3** | Selector Alt+Tab persistente — ventana **siguiente** |
 | **4** | *(libre)* |
-| **5** | Abrir esta chuleta de atajos (imagen) |
+| **5** | Abrir esta guía de atajos (imagen) |
 | **6** | *(libre)* |
 | **7** | Pantalla completa (`F11`) |
 | **8** | *(libre)* |
@@ -93,7 +93,7 @@ A partir de entonces el script se lanza solo al iniciar sesión.
 Para desactivarlo: borra el acceso directo de esa carpeta (o desde
 **Administrador de tareas → Inicio**).
 
-> La chuleta (`NagaV2_atajos.png`) debe estar **en la misma carpeta** que el
+> La guía de atajos (`NagaV2_atajos.png`) debe estar **en la misma carpeta** que el
 > `.ahk`, porque el Botón 5 la abre con `A_ScriptDir`.
 
 ---
@@ -112,7 +112,7 @@ sudo apt install python3-evdev      # o:  pip install evdev
 ### Configuración
 Edita las constantes al principio de `naga_macros.py`:
 
-- `IMAGE_PATH` → ruta de la chuleta en Linux (p. ej. `~/Imagenes/NagaV2_atajos.png`).
+- `IMAGE_PATH` → ruta de la guía de atajos en Linux (p. ej. `~/Imagenes/NagaV2_atajos.png`).
 - `DEVICE_NAME_CONTAINS` → texto del nombre del ratón (por defecto `"naga"`).
 - `ALTTAB_TIMEOUT`, `TILT_DEBOUNCE`, `WHEEL_STEPS` → ajustes finos.
 
@@ -186,8 +186,10 @@ systemctl --user enable --now naga-macros.service
 
 ```
 .
-├── NagaV2_Macros.ahk     # Windows (AutoHotkey v2)
-├── naga_macros.py        # Linux (Python evdev/uinput)
-├── NagaV2_atajos.png     # Chuleta de atajos (la abre el Botón 5)
+├── NagaV2_Macros.ahk        # Windows (AutoHotkey v2)
+├── naga_macros.py           # Linux (Python evdev/uinput)
+├── generar_guia_atajos.ps1  # Genera la imagen NagaV2_atajos.png
+├── NagaV2_atajos.png        # Guía de atajos (la abre el Botón 5)
+├── CLAUDE.md                # Contexto para mantener el repo
 └── README.md
 ```
