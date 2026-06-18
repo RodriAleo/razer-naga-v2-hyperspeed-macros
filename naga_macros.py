@@ -73,6 +73,12 @@ WHEEL_STEPS = 2
 # Cuanto aumenta/reduce el zoom por cada paso de rueda:
 ZOOM_STEPS = 1
 
+# Desplazamiento lateral continuo (tilt SIN hypershift). El tilt se reasigna en
+# Synapse a Ctrl+Shift+F13 (derecha) / Ctrl+Shift+F14 (izquierda) y aqui se
+# traduce a scroll horizontal repetido mientras se mantiene inclinado.
+TILT_SCROLL_INTERVAL = 0.06   # segundos entre cada paso (mayor = mas lento)
+TILT_SCROLL_STEPS = 1         # cuanto desplaza cada paso (mismo valor ambos lados)
+
 # Comando para abrir el historial del portapapeles (HS2 + clic derecho).
 # Requiere un gestor instalado. Ejemplos:
 #   ["copyq", "toggle"]
@@ -101,6 +107,13 @@ class NagaMacros:
         self.alttab_open = False
         self.alttab_deadline = 0.0
         self.last_tilt = {}          # nombre -> tiempo, para el debounce
+
+        # Combo de tilt (Ctrl+Shift+F13/F14) y scroll lateral continuo
+        self.ctrl_held = False       # Ctrl del combo de tilt
+        self.shift_held = False      # Shift del combo de tilt
+        self.scroll_dir = 0          # scroll lateral activo: +pasos der, -pasos izq
+        self.scroll_key = None       # tecla (F13/F14) que mantiene el scroll
+        self.next_scroll = 0.0       # proximo paso de scroll (monotonic)
 
         self.read_devs = []          # se leen (botones F13..F24)
         self.grab_devs = []          # se capturan (raton: rueda/tilt/clics)
@@ -194,6 +207,33 @@ class NagaMacros:
             return
         func()
 
+    # ---------- traduccion del tilt (Ctrl+Shift+F13/F14) ----------
+    def tilt_combo(self, code, value):
+        """En Linux el firmware no distingue el tilt del scroll, asi que el
+        tilt se reasigna en Synapse a Ctrl+Shift+F13 (der) / Ctrl+Shift+F14
+        (izq) y aqui se reinterpreta como el gesto de tilt original."""
+        right = (code == e.KEY_F13)
+        if value == 1:                   # tilt inclinado
+            if self.hyper1:              # HS1 -> pista sig/ant (una vez)
+                if right:
+                    self.once("next", lambda: self.tap(e.KEY_NEXTSONG))
+                else:
+                    self.once("prev", lambda: self.tap(e.KEY_PREVIOUSSONG))
+            elif self.hyper2:            # HS2 -> pegar/copiar (una vez)
+                if right:
+                    self.once("paste", lambda: self.tap(e.KEY_LEFTCTRL, e.KEY_V))
+                else:
+                    self.once("copy", lambda: self.tap(e.KEY_LEFTCTRL, e.KEY_C))
+            else:                        # sin HS -> scroll lateral continuo
+                self.scroll_dir = TILT_SCROLL_STEPS if right else -TILT_SCROLL_STEPS
+                self.scroll_key = code
+                self.next_scroll = monotonic()   # primer paso ya mismo
+        elif value == 0:                 # tilt soltado -> frena el scroll
+            if self.scroll_key == code:
+                self.scroll_dir = 0
+                self.scroll_key = None
+        # value == 2 (autorepeat del kernel) -> ignorar
+
     # ---------- Alt+Tab persistente ----------
     def alttab(self, forward):
         if not self.alttab_open:
@@ -232,13 +272,24 @@ class NagaMacros:
         fds = {d.fd: d for d in self.read_devs}
         fd_list = list(fds)   # inmutable durante el bucle
         while True:
-            timeout = None
+            deadlines = []
             if self.alttab_open:
-                timeout = max(0.0, self.alttab_deadline - monotonic())
+                deadlines.append(self.alttab_deadline)
+            if self.scroll_dir:
+                deadlines.append(self.next_scroll)
+            timeout = (max(0.0, min(deadlines) - monotonic())
+                       if deadlines else None)
             r, _, _ = select(fd_list, [], [], timeout)
+            now = monotonic()
 
-            if self.alttab_open and monotonic() >= self.alttab_deadline:
+            if self.alttab_open and now >= self.alttab_deadline:
                 self.alttab_close()
+
+            # scroll lateral continuo mientras se mantiene el tilt
+            if self.scroll_dir and now >= self.next_scroll:
+                self.ui.write(e.EV_REL, e.REL_HWHEEL, self.scroll_dir)
+                self.ui.syn()
+                self.next_scroll = now + TILT_SCROLL_INTERVAL
 
             for fd in r:
                 d = fds[fd]
@@ -250,9 +301,26 @@ class NagaMacros:
                     pass
 
     def process(self, ev, grabbed):
+        # ---- modificadores del combo de tilt (Ctrl+Shift+F13/F14) ----
+        # La interfaz de teclado del Naga solo emite Ctrl/Shift como parte de
+        # ese combo, asi que basta con registrar su estado y no reenviarlos.
+        if ev.type == e.EV_KEY and ev.code in (e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL):
+            self.ctrl_held = ev.value != 0
+            return
+        if ev.type == e.EV_KEY and ev.code in (e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT):
+            self.shift_held = ev.value != 0
+            return
+
         # ---- teclas F13..F24 (botones laterales) ----
         if ev.type == e.EV_KEY and ev.code in FKEYS:
             n = FKEYS[ev.code]
+            # F13/F14 con Ctrl+Shift = tilt der/izq (ver tilt_combo). El
+            # "or scroll_key == code" garantiza recibir el soltado aunque
+            # Synapse libere Ctrl/Shift antes que la propia F-key.
+            if ev.code in (e.KEY_F13, e.KEY_F14) and \
+               ((self.ctrl_held and self.shift_held) or self.scroll_key == ev.code):
+                self.tilt_combo(ev.code, ev.value)
+                return
             if ev.value == 1:            # pulsado
                 if n == 10:
                     self.hyper1 = True

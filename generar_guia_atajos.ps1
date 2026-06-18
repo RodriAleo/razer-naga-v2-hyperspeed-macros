@@ -3,7 +3,7 @@
 # Al cambiar una macro: edita $cells y/o las secciones Hypershift y re-ejecuta.
 
 Add-Type -AssemblyName System.Drawing
-$W=920; $H=820
+$W=920; $H=900
 $bmp=New-Object System.Drawing.Bitmap $W,$H
 $g=[System.Drawing.Graphics]::FromImage($bmp)
 $g.SmoothingMode=[System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
@@ -96,6 +96,9 @@ Section 'HYPERSHIFT 2  -  Boton 11  (manten pulsado)' @(
  @('Clic de rueda','Abrir software de capturas  (Ctrl+Q)'),
  @('Clic derecho','Portapapeles  (Win+V)'),
  @('Tilt izquierda / derecha','Copiar / Pegar  (Ctrl+C / Ctrl+V)')
+)
+Section 'TILT DE LA RUEDA  -  sin hypershift' @(
+ ,@('Tilt izquierda / derecha','Desplazamiento lateral continuo (scroll horizontal)')
 )
 
 $g.DrawString('Pulsa el Boton 5 para volver a abrir esta ayuda.',$fSmall,$bGrey,24,($H-30))

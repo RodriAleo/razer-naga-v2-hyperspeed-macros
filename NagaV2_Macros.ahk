@@ -121,8 +121,9 @@ F19::
 F22 & WheelUp::Send("{Volume_Up 2}")
 F22 & WheelDown::Send("{Volume_Down 2}")
 F22 & MButton::Send("{Media_Play_Pause}")
-F22 & WheelRight::TiltUnaVez("next", "{Media_Next}")
-F22 & WheelLeft::TiltUnaVez("prev", "{Media_Prev}")
+; El tilt (pista sig/ant) ya NO llega como rueda: Synapse lo manda como
+; Ctrl+Shift+F13 (derecha) / Ctrl+Shift+F14 (izquierda). Ver mas abajo,
+; bloque "TILT LATERAL", donde se traduce segun el hypershift activo.
 
 ; --- Boton 11 (tecla F23) = HYPERSHIFT (ZOOM) ------------
 ; Manten pulsado el Boton 11 y combinalo con la rueda:
@@ -138,14 +139,71 @@ F23 & WheelUp::Send("^{+}")
 F23 & WheelDown::Send("^-")
 F23 & MButton::Send("^q")
 F23 & RButton::Send("#v")
-F23 & WheelLeft::TiltUnaVez("copy", "^c")
-F23 & WheelRight::TiltUnaVez("paste", "^v")
+; El tilt (copiar/pegar) tampoco llega como rueda: ver bloque "TILT LATERAL".
 
 ; --- Boton 12 (tecla F24) --------------------------------
 F24::
 {
     ; Win+Tab (vista de tareas / escritorios)
     Send("#{Tab}")
+}
+
+
+; ============================================================
+;  TILT LATERAL  (rueda inclinada izquierda / derecha)
+;
+;  El firmware del Naga reporta el tilt como un scroll de rueda,
+;  que en Linux NO se distingue del scroll normal. Para arreglarlo,
+;  el tilt se reasigna en Razer Synapse a un combo de teclado:
+;     Tilt derecha   -> Ctrl+Shift+F13
+;     Tilt izquierda -> Ctrl+Shift+F14
+;  Aqui se traduce ese combo al gesto original segun el hypershift:
+;     Sin hypershift -> desplazamiento lateral continuo (mientras manten)
+;     HYPERSHIFT 1   -> pista siguiente / anterior
+;     HYPERSHIFT 2   -> pegar / copiar
+;  Velocidad del scroll lateral (ms entre pasos; mayor = mas lento):
+global SCROLL_INTERVALO := 60
+
+^+F13::TiltLateral("F13", "der")
+^+F14::TiltLateral("F14", "izq")
+
+TiltLateral(tecla, lado)
+{
+    global SCROLL_INTERVALO
+
+    ; HYPERSHIFT 1 (Boton 10 mantenido) -> pista siguiente / anterior
+    if (GetKeyState("F22", "P"))
+    {
+        if (lado = "der")
+            TiltUnaVez("next", "{Media_Next}")
+        else
+            TiltUnaVez("prev", "{Media_Prev}")
+        return
+    }
+    ; HYPERSHIFT 2 (Boton 11 mantenido) -> pegar / copiar
+    if (GetKeyState("F23", "P"))
+    {
+        if (lado = "der")
+            TiltUnaVez("paste", "^v")
+        else
+            TiltUnaVez("copy", "^c")
+        return
+    }
+
+    ; Sin hypershift -> desplazamiento lateral continuo mientras se mantiene.
+    ; (AHK libera el Ctrl+Shift del hotkey en cada Send, asi el gesto sale
+    ;  limpio: ^v es Ctrl+V y no Ctrl+Shift+V, el scroll no lleva modificadores.)
+    evento := (lado = "der") ? "{WheelRight}" : "{WheelLeft}"
+    paso := ScrollPaso.Bind(evento)
+    paso.Call()                      ; primer paso inmediato
+    SetTimer(paso, SCROLL_INTERVALO)
+    KeyWait(tecla)                   ; repite hasta soltar el tilt
+    SetTimer(paso, 0)
+}
+
+ScrollPaso(evento)
+{
+    Send(evento)
 }
 
 

@@ -35,6 +35,13 @@ Botón → tecla: **Botón N = F(12+N)** → Botón 1=F13 … Botón 12=F24.
 
 **Hypershift 1 (Botón 10):** rueda=volumen, clic rueda=play/pausa, tilt=pista sig/ant.
 **Hypershift 2 (Botón 11):** rueda=zoom, clic rueda=Ctrl+Q, clic derecho=portapapeles, tilt=copiar/pegar.
+**Tilt sin hypershift:** desplazamiento lateral continuo (scroll horizontal) mientras se mantiene.
+
+> **El tilt se reasigna en Synapse a teclado:** tilt derecha=`Ctrl+Shift+F13`,
+> tilt izquierda=`Ctrl+Shift+F14`. El firmware reporta el tilt como un evento de
+> rueda que en Linux no se distingue del scroll; por eso ambos scripts capturan
+> ese combo y lo traducen al gesto de tilt (scroll lateral / sig-ant / copiar-pegar
+> según el hypershift). Sin esta reasignación el tilt derecho se pierde en Linux.
 
 ---
 
@@ -86,10 +93,26 @@ Luego, si procede: `git add . && git commit`.
   - Linux: `naga_macros.py` **captura (grab)** la interfaz de ratón para poder
     suprimir el scroll normal; reinyecta movimiento y clic izquierdo. El estado
     se lleva con `self.hyper1`/`self.hyper2`.
-- **Anti-repetición del tilt:** mantener el tilt genera muchos eventos. Copiar,
-  pegar y cambio de pista se ejecutan UNA vez por inclinación
+- **Tilt reasignado a teclado (Ctrl+Shift+F13/F14):** el tilt ya NO llega como
+  evento de rueda sino como combo de teclado (ver el mapa de botones). Cada script
+  lo traduce según el hypershift:
+  - Windows (AHK): hotkeys `^+F13::` / `^+F14::` → función `TiltLateral(tecla, lado)`,
+    que mira `GetKeyState("F22"/"F23","P")` para decidir HS1/HS2/sin-HS. Las viejas
+    líneas `F22/F23 & WheelLeft/Right` se eliminaron.
+  - Linux (Python): en `process()`, F13/F14 con `ctrl_held && shift_held` se
+    desvían a `tilt_combo(code, value)`; se rastrea el estado de
+    `KEY_LEFTCTRL/LEFTSHIFT` (y variantes RIGHT). Ojo: depende de que Synapse
+    mande los modificadores ANTES que la F-key (orden estándar de combos).
+- **Desplazamiento lateral continuo (tilt sin hypershift):** se repite mientras
+  se mantiene el tilt. AHK lo hace con `SetTimer` + `KeyWait(tecla)` (intervalo
+  `SCROLL_INTERVALO`). Python lo hace en el bucle `run()` con un deadline
+  `self.next_scroll` (intervalo `TILT_SCROLL_INTERVAL`), emitiendo `REL_HWHEEL`;
+  el scroll se frena al recibir el soltado (`value == 0`) de `scroll_key`.
+- **Anti-repetición del tilt (en hypershift):** mantener el tilt genera muchos
+  eventos. Copiar, pegar y cambio de pista se ejecutan UNA vez por inclinación
   (AHK: función `TiltUnaVez`; Python: `self.once(...)`). El zoom y el volumen
-  SÍ se repiten al girar la rueda (no llevan anti-repetición).
+  SÍ se repiten al girar la rueda (no llevan anti-repetición). El scroll lateral
+  sin hypershift SÍ es continuo (no usa anti-repetición).
 - **Botón 5 / ruta de la imagen:**
   - Windows: `Run(A_ScriptDir . "\NagaV2_atajos.png")` — la imagen debe estar
     junto al `.ahk`. Si se renombra la imagen, actualizar esta línea.
@@ -122,13 +145,13 @@ Luego, si procede: `git add . && git commit`.
   gestor instalado (ej. `["copyq", "toggle"]`).
 - **Botón 12:** Windows `Win+Tab` (Task View); Linux tecla **Super** (overview GNOME).
 - **Ctrl+Q (capturas):** asume el mismo atajo en la app de capturas de cada SO.
-- **Tilt derecha (HS1 = pista siguiente / HS2 = pegar) — LIMITACIÓN LINUX:**
-  El firmware del Naga V2 HS reporta tilt derecha como `REL_WHEEL +1` (rueda
-  vertical arriba), idéntico a scroll arriba. No se puede distinguir en software.
-  En Linux, tilt derecha actúa igual que scroll arriba (volumen / zoom in).
-  Las funciones "pista siguiente" y "pegar vía tilt" están **perdidas en Linux**
-  a menos que se reconfigure el tilt en Razer Synapse (Windows) para que mande
-  una tecla personalizada en vez de scroll.
+- **Tilt — RESUELTO vía reasignación en Synapse (antes era limitación Linux):**
+  El firmware reporta el tilt como evento de rueda (`REL_WHEEL`/`REL_HWHEEL`) que
+  en Linux no se distingue del scroll normal (el tilt derecho se perdía). Solución
+  adoptada: el tilt se reasigna en Synapse a `Ctrl+Shift+F13` (derecha) /
+  `Ctrl+Shift+F14` (izquierda) y los scripts lo traducen (ver receta "Tilt
+  reasignado a teclado" arriba). Así funciona igual en Windows y Linux. Requiere
+  que esa reasignación esté guardada en la memoria onboard del ratón.
 
 ## Autoarranque
 

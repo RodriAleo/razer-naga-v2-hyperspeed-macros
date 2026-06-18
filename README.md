@@ -71,6 +71,26 @@ Correspondencia botón → tecla:
 | Clic derecho | Portapapeles (`Win+V` en Windows) |
 | Tilt izquierda / derecha | Copiar / Pegar (`Ctrl+C` / `Ctrl+V`) |
 
+### Tilt de la rueda — sin hypershift
+
+| Combinación | Acción |
+|-------------|--------|
+| Tilt izquierda / derecha | Desplazamiento lateral continuo (scroll horizontal) mientras se mantiene |
+
+> **Importante — configuración del tilt en Razer Synapse.** El firmware reporta
+> el tilt como un evento de rueda que en Linux **no se distingue** del scroll
+> normal. Por eso el tilt se reasigna en Synapse a una combinación de teclado, y
+> los scripts la traducen al gesto original:
+>
+> | Gesto físico | Tecla a asignar en Synapse |
+> |--------------|----------------------------|
+> | Tilt derecha | `Ctrl + Shift + F13` |
+> | Tilt izquierda | `Ctrl + Shift + F14` |
+>
+> Con esto el tilt funciona **igual en Windows y Linux** (antes el tilt derecho
+> se perdía en Linux). La velocidad del scroll lateral se ajusta con
+> `SCROLL_INTERVALO` (AHK) y `TILT_SCROLL_INTERVAL` (Python).
+
 ---
 
 ## Windows
@@ -114,7 +134,8 @@ Edita las constantes al principio de `naga_macros.py`:
 
 - `IMAGE_PATH` → por defecto apunta a `NagaV2_atajos.png` junto al script (igual que en Windows). Solo cámbialo si la imagen está en otra ubicación.
 - `DEVICE_NAME_CONTAINS` → texto del nombre del ratón (por defecto `"naga"`).
-- `ALTTAB_TIMEOUT`, `TILT_DEBOUNCE`, `WHEEL_STEPS` → ajustes finos.
+- `ALTTAB_TIMEOUT`, `TILT_DEBOUNCE`, `WHEEL_STEPS`, `ZOOM_STEPS` → ajustes finos.
+- `TILT_SCROLL_INTERVAL` / `TILT_SCROLL_STEPS` → velocidad y paso del desplazamiento lateral continuo del tilt.
 
 ### Uso
 ```bash
@@ -164,7 +185,7 @@ systemctl --user enable --now naga-macros.service
 | Portapapeles (HS2 + clic derecho) | `Win+V` nativo | `Super+V` en GNOME 44+ abre notificaciones. Configurar `PORTAPAPELES_CMD` en `naga_macros.py` con tu gestor (ej. `["copyq", "toggle"]`) |
 | Vista de tareas (Botón 12) | `Win+Tab` | Tecla **Super** (Actividades de GNOME) |
 | `Ctrl+Q` (capturas) | Tu software de capturas | Asegúrate de que tu app de capturas en Linux use el mismo atajo |
-| **Tilt derecha** (HS1 = pista siguiente, HS2 = pegar) | Funciona | **No disponible en Linux** — el firmware reporta tilt derecha como scroll arriba (`REL_WHEEL +1`), indistinguible de girar la rueda. En hypershift, tilt derecha = mismo efecto que scroll arriba (volumen / zoom in). Solución: reconfigurar el tilt en Razer Synapse (Windows) para que envíe una tecla personalizada. |
+| **Tilt** (izq/der) | Funciona | Funciona reasignando el tilt en Synapse a `Ctrl+Shift+F13` (derecha) / `Ctrl+Shift+F14` (izquierda) — ver la nota de la sección *Tilt de la rueda*. Sin esa reasignación el tilt derecho se pierde en Linux (el firmware lo reporta como scroll, indistinguible de girar la rueda). |
 
 ---
 
