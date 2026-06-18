@@ -48,8 +48,16 @@ import os
 import sys
 import signal
 import subprocess
+import threading
 from select import select
-from time import monotonic
+from time import monotonic, sleep
+
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+    _HAS_TRAY = True
+except ImportError:
+    _HAS_TRAY = False
 
 from evdev import InputDevice, UInput, ecodes as e, list_devices
 
@@ -99,9 +107,19 @@ FKEYS = {
 REL_WHEEL_HI = getattr(e, "REL_WHEEL_HI_RES", None)
 REL_HWHEEL_HI = getattr(e, "REL_HWHEEL_HI_RES", None)
 
+if _HAS_TRAY:
+    def _make_tray_icon(color):
+        img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+        ImageDraw.Draw(img).ellipse([4, 4, 60, 60], fill=color)
+        return img
+
+    _ICON_ACTIVE  = _make_tray_icon((50, 200, 50, 255))   # verde: activo
+    _ICON_WAITING = _make_tray_icon((220, 130, 0, 255))   # naranja: esperando
+
 
 class NagaMacros:
-    def __init__(self):
+    def __init__(self, stop_event=None):
+        self._stop = stop_event if stop_event is not None else threading.Event()
         self.hyper1 = False          # Boton 10 mantenido
         self.hyper2 = False          # Boton 11 mantenido
         self.alttab_open = False
@@ -149,7 +167,8 @@ class NagaMacros:
             if flt in d.name.lower():
                 named.append(d)
 
-        # Si no encuentra por nombre, busca el dispositivo que emita F13
+        # Fallback: busca dispositivo con F13 pero sin KEY_A (excluye teclados
+        # reales como Logitech que también declaran KEY_F13)
         if not named:
             for path in list_devices():
                 try:
@@ -157,12 +176,12 @@ class NagaMacros:
                 except Exception:
                     continue
                 keys = d.capabilities().get(e.EV_KEY, [])
-                if e.KEY_F13 in keys:
+                if e.KEY_F13 in keys and e.KEY_A not in keys:
                     named.append(d)
 
         if not named:
-            sys.exit("No encontre el raton Naga. Ajusta DEVICE_NAME_CONTAINS "
-                     "o ejecuta con sudo.")
+            raise OSError(19, "No encontre el raton Naga. Ajusta "
+                          "DEVICE_NAME_CONTAINS o ejecuta con sudo.")
 
         for d in named:
             self.read_devs.append(d)
@@ -271,14 +290,15 @@ class NagaMacros:
     def run(self):
         fds = {d.fd: d for d in self.read_devs}
         fd_list = list(fds)   # inmutable durante el bucle
-        while True:
+        while not self._stop.is_set():
             deadlines = []
             if self.alttab_open:
                 deadlines.append(self.alttab_deadline)
             if self.scroll_dir:
                 deadlines.append(self.next_scroll)
-            timeout = (max(0.0, min(deadlines) - monotonic())
-                       if deadlines else None)
+            # cap 0.25 s para comprobar self._stop pronto (permite reiniciar)
+            cap = 0.25
+            timeout = min(cap, max(0.0, min(deadlines) - monotonic()) if deadlines else cap)
             r, _, _ = select(fd_list, [], [], timeout)
             now = monotonic()
 
@@ -409,6 +429,30 @@ class NagaMacros:
             pass
 
 
+def _wait_for_naga(poll=2.0, settle=3.0):
+    """Bloquea hasta que el Naga aparezca y esté estable en /dev/input/.
+    Tras detectarlo espera `settle` segundos y confirma que sigue presente,
+    para asegurarse de que el kernel registró todas las interfaces.
+    """
+    flt = DEVICE_NAME_CONTAINS.lower()
+
+    def present():
+        for path in list_devices():
+            try:
+                if flt in InputDevice(path).name.lower():
+                    return True
+            except Exception:
+                pass
+        return False
+
+    while True:
+        if present():
+            sleep(settle)
+            if present():   # confirmar estabilidad tras el asentamiento
+                return
+        sleep(poll)
+
+
 def main():
     # SCHED_FIFO prioridad 10: el kernel no interrumpe este proceso mientras
     # procesa eventos de entrada, reduciendo la latencia de respuesta.
@@ -419,18 +463,88 @@ def main():
     except Exception as ex:
         print(f"Aviso: no se pudo establecer prioridad en tiempo real: {ex}")
 
-    app = NagaMacros()
+    # Estado compartido entre el hilo worker y el hilo del tray
+    _app   = [None]               # instancia NagaMacros actual
+    _stop  = [threading.Event()]  # evento de parada; se limpia en cada iteracion
+    _alive = [True]               # False cuando el usuario elige Salir
+    _icon  = [None]               # icono de bandeja (solo si _HAS_TRAY)
 
-    def stop(*_):
-        app.cleanup()
+    def _set_active(active):
+        if _HAS_TRAY and _icon[0] is not None:
+            _icon[0].icon  = _ICON_ACTIVE if active else _ICON_WAITING
+            _icon[0].title = ("Naga Macros — activo"
+                              if active else "Naga Macros — esperando ratón")
+
+    def _worker():
+        while _alive[0]:
+            _stop[0].clear()
+            _set_active(False)
+            try:
+                _app[0] = NagaMacros(stop_event=_stop[0])
+            except OSError as ex:
+                _app[0] = None
+                if ex.errno == 19:
+                    print("Dispositivo no encontrado. Esperando...")
+                    _wait_for_naga()
+                    print("Dispositivo encontrado, iniciando...")
+                    continue
+                raise
+            _set_active(True)
+            _disconnect = False
+            try:
+                _app[0].run()
+            except OSError as ex:
+                if ex.errno != 19:
+                    raise
+                _disconnect = True
+            finally:
+                if _app[0] is not None:
+                    try:
+                        _app[0].cleanup()
+                    except Exception:
+                        pass
+                    _app[0] = None
+            if _disconnect:
+                print("\nDispositivo desconectado. Esperando reconexion...")
+                _wait_for_naga()
+                print("Dispositivo encontrado, reiniciando...")
+
+    def _on_restart(icon, item):
+        """Reinicia el script sin salir: detiene run() y el worker crea una nueva instancia."""
+        _stop[0].set()
+
+    def _on_quit(icon, item):
+        _alive[0] = False
+        _stop[0].set()
+        icon.stop()
+
+    def _stop_signal(*_):
+        _alive[0] = False
+        _stop[0].set()
+        if _HAS_TRAY and _icon[0]:
+            _icon[0].stop()
         sys.exit(0)
 
-    signal.signal(signal.SIGINT, stop)
-    signal.signal(signal.SIGTERM, stop)
-    try:
-        app.run()
-    finally:
-        app.cleanup()
+    signal.signal(signal.SIGINT,  _stop_signal)
+    signal.signal(signal.SIGTERM, _stop_signal)
+
+    if _HAS_TRAY:
+        t = threading.Thread(target=_worker, daemon=True, name="naga-worker")
+        t.start()
+        icon = pystray.Icon(
+            "naga-macros",
+            _ICON_WAITING,
+            "Naga Macros — esperando ratón",
+            menu=pystray.Menu(
+                pystray.MenuItem("Reiniciar", _on_restart),
+                pystray.MenuItem("Salir",     _on_quit),
+            ),
+        )
+        _icon[0] = icon
+        icon.run()        # bloquea el hilo principal (requerido por pystray)
+        t.join(timeout=2.0)
+    else:
+        _worker()
 
 
 if __name__ == "__main__":

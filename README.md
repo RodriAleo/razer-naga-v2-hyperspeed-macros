@@ -127,7 +127,16 @@ eso funciona **igual en Wayland y X11**).
 ### Requisitos
 ```bash
 sudo apt install python3-evdev      # o:  pip install evdev
+pip install pystray pillow          # ícono en la bandeja del sistema (opcional)
 ```
+
+Para que el ícono aparezca en GNOME Shell también necesitas la extensión
+[AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/).
+Si no la tienes instalada el script funciona igualmente, solo que sin ícono.
+
+> **Nota con `sudo`:** para que el ícono sea visible debes preservar las
+> variables de sesión del usuario: `sudo -E python3 naga_macros.py`.
+> Alternativamente, sigue la sección *Ejecutar sin sudo* más abajo.
 
 ### Configuración
 Edita las constantes al principio de `naga_macros.py`:
@@ -139,10 +148,15 @@ Edita las constantes al principio de `naga_macros.py`:
 
 ### Uso
 ```bash
-sudo python3 naga_macros.py
+sudo -E python3 naga_macros.py
 ```
 Al arrancar imprime los dispositivos detectados (el Naga debe aparecer, y la
-interfaz de ratón marcada como `(capturado)`).
+interfaz de ratón marcada como `(capturado)`). Si `pystray` y `Pillow` están
+instalados, aparece un ícono circular en la bandeja:
+- **Verde** → ratón detectado y macros activos.
+- **Naranja** → esperando que el ratón se conecte.
+
+Clic derecho sobre el ícono para acceder al menú **Reiniciar** / **Salir**.
 
 ### Ejecutar sin `sudo`
 1. Añade tu usuario al grupo `input` y reinicia sesión:
