@@ -19,12 +19,12 @@
 #  (mas abajo, en las NOTAS, como evitar el sudo y como
 #   arrancarlo automaticamente al iniciar sesion)
 #
-#  --- DISPOSICION (igual que la chuleta) ---
+#  --- DISPOSICION (igual que la guia de atajos) ---
 #    Boton 1  (F13) Alt+Tab rapido
 #    Boton 2  (F14) Selector Alt+Tab  <- anterior
 #    Boton 3  (F15) Selector Alt+Tab  -> siguiente
 #    Boton 4  (F16) LIBRE
-#    Boton 5  (F17) Abrir la chuleta de atajos
+#    Boton 5  (F17) Abrir la guia de atajos
 #    Boton 6  (F18) LIBRE
 #    Boton 7  (F19) Pantalla completa (F11)
 #    Boton 8  (F20) LIBRE
@@ -57,7 +57,7 @@ from evdev import InputDevice, UInput, ecodes as e, list_devices
 # Solo se "capturan" los dispositivos cuyo nombre contenga esto:
 DEVICE_NAME_CONTAINS = "naga"
 
-# Ruta de la imagen-chuleta (cambiala a donde la tengas en Linux):
+# Ruta de la imagen-guia de atajos (cambiala a donde la tengas en Linux):
 IMAGE_PATH = os.path.expanduser("~/Imagenes/NagaV2_atajos.png")
 
 # Tiempo (segundos) que el selector Alt+Tab sigue abierto sin pulsar:
@@ -202,7 +202,7 @@ class NagaMacros:
             self.alttab(forward=False)
         elif n == 3:                     # selector ->
             self.alttab(forward=True)
-        elif n == 5:                     # abrir chuleta
+        elif n == 5:                     # abrir guia de atajos
             os.system(f'xdg-open "{IMAGE_PATH}" &')
         elif n == 7:                     # pantalla completa
             self.tap(e.KEY_F11)

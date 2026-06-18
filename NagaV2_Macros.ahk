@@ -78,7 +78,7 @@ F13::
 ; --- Boton 5 (tecla F17) ---------------------------------
 F17::
 {
-    ; Abrir la chuleta de atajos (ayuda a memoria)
+    ; Abrir la guia de atajos (ayuda a memoria)
     Run(A_ScriptDir . "\NagaV2_atajos.png")
 }
 
