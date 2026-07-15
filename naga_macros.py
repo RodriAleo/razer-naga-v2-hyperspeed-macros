@@ -74,8 +74,8 @@ WHEEL_STEPS = 2
 ZOOM_STEPS = 1
 
 # Desplazamiento lateral continuo (tilt SIN hypershift). El tilt se reasigna en
-# Synapse a Ctrl+Shift+F13 (derecha) / Ctrl+Shift+F14 (izquierda) y aqui se
-# traduce a scroll horizontal repetido mientras se mantiene inclinado.
+# Synapse a Shift+F13 (derecha) / Shift+F14 (izquierda) y aqui se traduce a
+# scroll horizontal repetido mientras se mantiene inclinado.
 TILT_SCROLL_INTERVAL = 0.06   # segundos entre cada paso (mayor = mas lento)
 TILT_SCROLL_STEPS = 1         # cuanto desplaza cada paso (mismo valor ambos lados)
 
@@ -108,8 +108,8 @@ class NagaMacros:
         self.alttab_deadline = 0.0
         self.last_tilt = {}          # nombre -> tiempo, para el debounce
 
-        # Combo de tilt (Ctrl+Shift+F13/F14) y scroll lateral continuo
-        self.ctrl_held = False       # Ctrl del combo de tilt
+        # Combo de tilt (Shift+F13/F14) y scroll lateral continuo
+        self.ctrl_held = False       # Ctrl (por si el binding aun lo incluye)
         self.shift_held = False      # Shift del combo de tilt
         self.scroll_dir = 0          # scroll lateral activo: +pasos der, -pasos izq
         self.scroll_key = None       # tecla (F13/F14) que mantiene el scroll
@@ -207,11 +207,11 @@ class NagaMacros:
             return
         func()
 
-    # ---------- traduccion del tilt (Ctrl+Shift+F13/F14) ----------
+    # ---------- traduccion del tilt (Shift+F13/F14) ----------
     def tilt_combo(self, code, value):
         """En Linux el firmware no distingue el tilt del scroll, asi que el
-        tilt se reasigna en Synapse a Ctrl+Shift+F13 (der) / Ctrl+Shift+F14
-        (izq) y aqui se reinterpreta como el gesto de tilt original."""
+        tilt se reasigna en Synapse a Shift+F13 (der) / Shift+F14 (izq) y aqui
+        se reinterpreta como el gesto de tilt original."""
         right = (code == e.KEY_F13)
         if value == 1:                   # tilt inclinado
             if self.hyper1:              # HS1 -> pista sig/ant (una vez)
@@ -301,9 +301,10 @@ class NagaMacros:
                     pass
 
     def process(self, ev, grabbed):
-        # ---- modificadores del combo de tilt (Ctrl+Shift+F13/F14) ----
-        # La interfaz de teclado del Naga solo emite Ctrl/Shift como parte de
-        # ese combo, asi que basta con registrar su estado y no reenviarlos.
+        # ---- modificadores del combo de tilt (Shift+F13/F14) ----
+        # La interfaz de teclado del Naga solo emite Shift (y Ctrl si el binding
+        # aun lo trae) como parte de ese combo; basta registrar su estado y no
+        # reenviarlos.
         if ev.type == e.EV_KEY and ev.code in (e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL):
             self.ctrl_held = ev.value != 0
             return
@@ -314,11 +315,12 @@ class NagaMacros:
         # ---- teclas F13..F24 (botones laterales) ----
         if ev.type == e.EV_KEY and ev.code in FKEYS:
             n = FKEYS[ev.code]
-            # F13/F14 con Ctrl+Shift = tilt der/izq (ver tilt_combo). El
-            # "or scroll_key == code" garantiza recibir el soltado aunque
-            # Synapse libere Ctrl/Shift antes que la propia F-key.
+            # F13/F14 con Shift = tilt der/izq (ver tilt_combo). El binding en
+            # Synapse es Shift+F13/F14 (sin Ctrl: con Ctrl, en Windows la rueda
+            # haria zoom). El "or scroll_key == code" garantiza recibir el
+            # soltado aunque Synapse libere Shift antes que la propia F-key.
             if ev.code in (e.KEY_F13, e.KEY_F14) and \
-               ((self.ctrl_held and self.shift_held) or self.scroll_key == ev.code):
+               (self.shift_held or self.scroll_key == ev.code):
                 self.tilt_combo(ev.code, ev.value)
                 return
             if ev.value == 1:            # pulsado

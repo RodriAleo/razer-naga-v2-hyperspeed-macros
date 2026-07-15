@@ -84,8 +84,14 @@ Correspondencia botón → tecla:
 >
 > | Gesto físico | Tecla a asignar en Synapse |
 > |--------------|----------------------------|
-> | Tilt derecha | `Ctrl + Shift + F13` |
-> | Tilt izquierda | `Ctrl + Shift + F14` |
+> | Tilt derecha | `Shift + F13` |
+> | Tilt izquierda | `Shift + F14` |
+>
+> **No agregues `Ctrl` al combo:** en Windows `Ctrl`+rueda = zoom y no se puede
+> evitar de forma fiable si Synapse mantiene `Ctrl` pulsado durante el tilt. Con
+> solo `Shift`, la rueda vertical se convierte en scroll horizontal nativo (así
+> lo hace el `.ahk`), sin zoom. En Linux da igual (los modificadores se capturan),
+> pero se usa `Shift` en ambos para tener un único binding.
 >
 > Con esto el tilt funciona **igual en Windows y Linux** (antes el tilt derecho
 > se perdía en Linux). La velocidad del scroll lateral se ajusta con
@@ -185,7 +191,7 @@ systemctl --user enable --now naga-macros.service
 | Portapapeles (HS2 + clic derecho) | `Win+V` nativo | `Super+V` en GNOME 44+ abre notificaciones. Configurar `PORTAPAPELES_CMD` en `naga_macros.py` con tu gestor (ej. `["copyq", "toggle"]`) |
 | Vista de tareas (Botón 12) | `Win+Tab` | Tecla **Super** (Actividades de GNOME) |
 | `Ctrl+Q` (capturas) | Tu software de capturas | Asegúrate de que tu app de capturas en Linux use el mismo atajo |
-| **Tilt** (izq/der) | Funciona | Funciona reasignando el tilt en Synapse a `Ctrl+Shift+F13` (derecha) / `Ctrl+Shift+F14` (izquierda) — ver la nota de la sección *Tilt de la rueda*. Sin esa reasignación el tilt derecho se pierde en Linux (el firmware lo reporta como scroll, indistinguible de girar la rueda). |
+| **Tilt** (izq/der) | Funciona | Funciona reasignando el tilt en Synapse a `Shift+F13` (derecha) / `Shift+F14` (izquierda) — ver la nota de la sección *Tilt de la rueda*. Sin esa reasignación el tilt derecho se pierde en Linux (el firmware lo reporta como scroll, indistinguible de girar la rueda). |
 
 ---
 
