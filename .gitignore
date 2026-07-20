@@ -1,1 +1,6 @@
-/__pycache__
+# Ejecutable compilado del AHK (artefacto de build)
+NagaV2_Macros.exe
+
+# Cache de Python
+__pycache__/
+*.pyc

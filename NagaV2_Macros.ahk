@@ -62,11 +62,15 @@ F13::
 }
 
 ; --- Boton 2 (tecla F14) ---------------------------------
-; El * hace que se active aunque Alt ya este presionado por el script
-*F14::NagaAltTab("atras")    ; retrocede en el selector (Alt+Shift+Tab)
+; Dos casos EXPLICITOS (no usar '*'): primera pulsacion sin modificadores, y
+; pulsaciones con Alt sostenido por el selector abierto. El '*' capturaria
+; tambien Shift+F14, que es el tilt izquierdo, y abriria el selector por error.
+F14::NagaAltTab("atras")     ; primera pulsacion (Alt+Shift+Tab)
+!F14::NagaAltTab("atras")    ; con el selector ya abierto (Alt sostenido)
 
 ; --- Boton 3 (tecla F15) ---------------------------------
-*F15::NagaAltTab("adelante") ; avanza en el selector (Alt+Tab)
+F15::NagaAltTab("adelante")  ; primera pulsacion (Alt+Tab)
+!F15::NagaAltTab("adelante") ; con el selector ya abierto (Alt sostenido)
 
 ; --- Boton 4 (tecla F16) = LIBRE -------------------------
 ; Sin asignar. Para usarlo, quita los ; y pon tu accion dentro:
@@ -122,8 +126,8 @@ F22 & WheelUp::Send("{Volume_Up 2}")
 F22 & WheelDown::Send("{Volume_Down 2}")
 F22 & MButton::Send("{Media_Play_Pause}")
 ; El tilt (pista sig/ant) ya NO llega como rueda: Synapse lo manda como
-; Ctrl+Shift+F13 (derecha) / Ctrl+Shift+F14 (izquierda). Ver mas abajo,
-; bloque "TILT LATERAL", donde se traduce segun el hypershift activo.
+; Shift+F13 (derecha) / Shift+F14 (izquierda). Ver mas abajo, bloque
+; "TILT LATERAL", donde se traduce segun el hypershift activo.
 
 ; --- Boton 11 (tecla F23) = HYPERSHIFT (ZOOM) ------------
 ; Manten pulsado el Boton 11 y combinalo con la rueda:
@@ -155,21 +159,38 @@ F24::
 ;  El firmware del Naga reporta el tilt como un scroll de rueda,
 ;  que en Linux NO se distingue del scroll normal. Para arreglarlo,
 ;  el tilt se reasigna en Razer Synapse a un combo de teclado:
-;     Tilt derecha   -> Ctrl+Shift+F13
-;     Tilt izquierda -> Ctrl+Shift+F14
+;     Tilt derecha   -> Shift+F13
+;     Tilt izquierda -> Shift+F14
+;  IMPORTANTE: el combo NO lleva Ctrl. Con Ctrl la rueda se interpreta como
+;  Ctrl+rueda = zoom (imposible de evitar de forma fiable si Synapse mantiene
+;  Ctrl pulsado). El Shift solo sirve para distinguir el tilt del boton (F13/F14
+;  pelados = botones 1/2); NO se usa para el scroll: se manda rueda horizontal
+;  nativa (WheelRight/Left), que no depende de ningun modificador.
 ;  Aqui se traduce ese combo al gesto original segun el hypershift:
 ;     Sin hypershift -> desplazamiento lateral continuo (mientras manten)
 ;     HYPERSHIFT 1   -> pista siguiente / anterior
 ;     HYPERSHIFT 2   -> pegar / copiar
 ;  Velocidad del scroll lateral (ms entre pasos; mayor = mas lento):
 global SCROLL_INTERVALO := 60
+global scrollLado := ""           ; "" inactivo | "der" | "izq" (scroll en curso)
 
-^+F13::TiltLateral("F13", "der")
-^+F14::TiltLateral("F14", "izq")
++F13::TiltLateral("der")
++F14::TiltLateral("izq")
 
-TiltLateral(tecla, lado)
+; El combo deja Shift pulsado; sus auto-repeticiones de la F-key se ignoran
+; mientras el scroll de ese lado esta activo, para que no disparen los botones
+; 1 (Alt+Tab) y 2 (selector).
+#HotIf (scrollLado = "der")
+*F13::return                 ; ignora auto-repeticiones (no dispara boton 1)
+*F13 up::DetenerScroll()     ; soltar el tilt frena el scroll (event-driven)
+#HotIf (scrollLado = "izq")
+*F14::return                 ; ignora auto-repeticiones (no dispara boton 2)
+*F14 up::DetenerScroll()     ; soltar el tilt frena el scroll (event-driven)
+#HotIf
+
+TiltLateral(lado)
 {
-    global SCROLL_INTERVALO
+    global SCROLL_INTERVALO, scrollLado
 
     ; HYPERSHIFT 1 (Boton 10 mantenido) -> pista siguiente / anterior
     if (GetKeyState("F22", "P"))
@@ -191,19 +212,43 @@ TiltLateral(tecla, lado)
     }
 
     ; Sin hypershift -> desplazamiento lateral continuo mientras se mantiene.
-    ; (AHK libera el Ctrl+Shift del hotkey en cada Send, asi el gesto sale
-    ;  limpio: ^v es Ctrl+V y no Ctrl+Shift+V, el scroll no lleva modificadores.)
-    evento := (lado = "der") ? "{WheelRight}" : "{WheelLeft}"
-    paso := ScrollPaso.Bind(evento)
-    paso.Call()                      ; primer paso inmediato
-    SetTimer(paso, SCROLL_INTERVALO)
-    KeyWait(tecla)                   ; repite hasta soltar el tilt
-    SetTimer(paso, 0)
+    ; Un timer AUTO-VERIFICADO hace el scroll y se detiene solo al soltar el
+    ; tilt (mira el estado fisico de la tecla). Antes se usaba KeyWait, que a
+    ; veces no veia el soltado y dejaba el scroll disparado ("trabado").
+    if (scrollLado != "")            ; ya hay un scroll en curso -> no reiniciar
+        return
+    scrollLado := lado
+    SetTimer(ScrollTick, SCROLL_INTERVALO)
+    ScrollTick()                     ; primer paso inmediato
 }
 
-ScrollPaso(evento)
+DetenerScroll()
 {
-    Send(evento)
+    global scrollLado
+    SetTimer(ScrollTick, 0)
+    scrollLado := ""
+}
+
+ScrollTick()
+{
+    global scrollLado
+    tecla := (scrollLado = "der") ? "F13" : "F14"
+    ; respaldo del stop: si el tilt ya no esta fisicamente pulsado, frena
+    ; (por si el evento de soltado *Fxx up no llegara por algun motivo)
+    if (scrollLado = "" || !GetKeyState(tecla, "P"))
+    {
+        DetenerScroll()
+        return
+    }
+    ; SendEvent (NO Send/SendInput): SendInput congela el hook mientras envia y
+    ; a veces se comia el soltado del tilt, dejando el scroll trabado. SendEvent
+    ; no bloquea el hook, asi GetKeyState ve el soltado y el timer se detiene.
+    ; Rueda HORIZONTAL nativa (WheelRight/Left): scroll lateral directo, SIN
+    ; depender de Shift (Synapse lo suelta enseguida, no lo mantiene pulsado).
+    ; Sin Ctrl en el binding no hay zoom.
+    ;   der -> WheelRight ; izq -> WheelLeft (si queda invertido, intercambialos)
+    rueda := (scrollLado = "der") ? "{WheelRight}" : "{WheelLeft}"
+    SendEvent(rueda)
 }
 
 

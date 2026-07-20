@@ -37,11 +37,14 @@ Botón → tecla: **Botón N = F(12+N)** → Botón 1=F13 … Botón 12=F24.
 **Hypershift 2 (Botón 11):** rueda=zoom, clic rueda=Ctrl+Q, clic derecho=portapapeles, tilt=copiar/pegar.
 **Tilt sin hypershift:** desplazamiento lateral continuo (scroll horizontal) mientras se mantiene.
 
-> **El tilt se reasigna en Synapse a teclado:** tilt derecha=`Ctrl+Shift+F13`,
-> tilt izquierda=`Ctrl+Shift+F14`. El firmware reporta el tilt como un evento de
+> **El tilt se reasigna en Synapse a teclado:** tilt derecha=`Shift+F13`,
+> tilt izquierda=`Shift+F14`. El firmware reporta el tilt como un evento de
 > rueda que en Linux no se distingue del scroll; por eso ambos scripts capturan
 > ese combo y lo traducen al gesto de tilt (scroll lateral / sig-ant / copiar-pegar
 > según el hypershift). Sin esta reasignación el tilt derecho se pierde en Linux.
+> **El combo NO lleva Ctrl a propósito:** en Windows `Ctrl`+rueda = zoom y no se
+> puede evitar de forma fiable si Synapse mantiene `Ctrl` pulsado; con solo
+> `Shift`, la rueda vertical se vuelve scroll horizontal nativo (ver receta abajo).
 
 ---
 
@@ -82,10 +85,13 @@ Luego, si procede: `git add . && git commit`.
 ## Recetas técnicas y gotchas (no romper)
 
 - **Selector Alt+Tab persistente (botones 2/3):**
-  - Windows: requiere prefijo `*` en el hotkey (`*F14::`, `*F15::`) **y** modo
-    `{Blind}` + `SendMode("Event")`. Sin el `*` solo cuenta la 1ª pulsación
-    (porque Alt queda pulsado y la tecla pasa a ser `Alt+Fxx`). Sin `{Blind}`
-    el selector se cierra y reabre en cada pulsación.
+  - Windows: se listan **dos hotkeys explícitos** por botón — `F14::` (1ª
+    pulsación, sin modificadores) y `!F14::` (pulsaciones con Alt sostenido por
+    el selector) — más modo `{Blind}` + `SendMode("Event")`. Sin cubrir el caso
+    `Alt` solo cuenta la 1ª pulsación (Alt queda pulsado y la tecla pasa a ser
+    `Alt+Fxx`); sin `{Blind}` el selector se cierra/reabre en cada pulsación.
+    **NO usar el comodín `*F14::`**: capturaría también `Shift+F14`, que es el
+    tilt izquierdo, y abriría el selector por error (ver receta del tilt).
   - Linux: se mantiene `KEY_LEFTALT` pulsado y se suelta tras `ALTTAB_TIMEOUT`.
 - **Hypershift:**
   - Windows: combinaciones personalizadas `F22 & WheelUp::` (F22/F23 como
@@ -93,21 +99,34 @@ Luego, si procede: `git add . && git commit`.
   - Linux: `naga_macros.py` **captura (grab)** la interfaz de ratón para poder
     suprimir el scroll normal; reinyecta movimiento y clic izquierdo. El estado
     se lleva con `self.hyper1`/`self.hyper2`.
-- **Tilt reasignado a teclado (Ctrl+Shift+F13/F14):** el tilt ya NO llega como
-  evento de rueda sino como combo de teclado (ver el mapa de botones). Cada script
-  lo traduce según el hypershift:
-  - Windows (AHK): hotkeys `^+F13::` / `^+F14::` → función `TiltLateral(tecla, lado)`,
+- **Tilt reasignado a teclado (Shift+F13/F14):** el tilt ya NO llega como
+  evento de rueda sino como combo de teclado (ver el mapa de botones). **Sin
+  Ctrl a propósito** (con Ctrl la rueda haría zoom en Windows). Cada script lo
+  traduce según el hypershift:
+  - Windows (AHK): hotkeys `+F13::` / `+F14::` → función `TiltLateral(lado)`,
     que mira `GetKeyState("F22"/"F23","P")` para decidir HS1/HS2/sin-HS. Las viejas
     líneas `F22/F23 & WheelLeft/Right` se eliminaron.
-  - Linux (Python): en `process()`, F13/F14 con `ctrl_held && shift_held` se
-    desvían a `tilt_combo(code, value)`; se rastrea el estado de
-    `KEY_LEFTCTRL/LEFTSHIFT` (y variantes RIGHT). Ojo: depende de que Synapse
-    mande los modificadores ANTES que la F-key (orden estándar de combos).
+  - Linux (Python): en `process()`, F13/F14 con `shift_held` se desvían a
+    `tilt_combo(code, value)`; se rastrea el estado de `KEY_LEFTSHIFT` (y
+    `RIGHTSHIFT`; `Ctrl` también, por si el binding aún lo trae). Ojo: depende de
+    que Synapse mande el modificador ANTES que la F-key (orden estándar).
 - **Desplazamiento lateral continuo (tilt sin hypershift):** se repite mientras
-  se mantiene el tilt. AHK lo hace con `SetTimer` + `KeyWait(tecla)` (intervalo
-  `SCROLL_INTERVALO`). Python lo hace en el bucle `run()` con un deadline
-  `self.next_scroll` (intervalo `TILT_SCROLL_INTERVAL`), emitiendo `REL_HWHEEL`;
-  el scroll se frena al recibir el soltado (`value == 0`) de `scroll_key`.
+  se mantiene el tilt.
+  - Windows (AHK): timer `ScrollTick` que manda rueda **horizontal nativa**
+    `SendEvent("{WheelRight/Left}")`. Clave del **anti-zoom**: el binding es
+    `Shift+Fxx` **sin Ctrl** (con Ctrl la rueda haría zoom y no se puede soltar
+    Ctrl de forma fiable, Synapse lo mantiene). El `Shift` solo distingue el tilt
+    del botón; NO se usa para el scroll (Synapse lo suelta enseguida, así que
+    depender de `Shift`+rueda vertical daba scroll vertical). **Stop doble:**
+    hotkey `*Fxx up::DetenerScroll()` (event-driven) + respaldo por sondeo
+    `GetKeyState(tecla,"P")` en `ScrollTick`. Usar **`SendEvent`, NO `Send`**:
+    `Send`=`SendInput` (por `SendMode("Input")`) congela el hook y se comía el
+    soltado, dejando el scroll trabado. `scrollLado` lleva el estado; un `#HotIf
+    (scrollLado=...)` ignora las auto-repeticiones de la F-key (botones 1/2).
+  - Linux (Python): bucle `run()` con un deadline `self.next_scroll` (intervalo
+    `TILT_SCROLL_INTERVAL`), emitiendo `REL_HWHEEL`; se frena al recibir el
+    soltado (`value == 0`) de `scroll_key`. Sin problema de zoom: los
+    modificadores del combo se capturan (grab) y nunca llegan al compositor.
 - **Anti-repetición del tilt (en hypershift):** mantener el tilt genera muchos
   eventos. Copiar, pegar y cambio de pista se ejecutan UNA vez por inclinación
   (AHK: función `TiltUnaVez`; Python: `self.once(...)`). El zoom y el volumen
@@ -148,8 +167,8 @@ Luego, si procede: `git add . && git commit`.
 - **Tilt — RESUELTO vía reasignación en Synapse (antes era limitación Linux):**
   El firmware reporta el tilt como evento de rueda (`REL_WHEEL`/`REL_HWHEEL`) que
   en Linux no se distingue del scroll normal (el tilt derecho se perdía). Solución
-  adoptada: el tilt se reasigna en Synapse a `Ctrl+Shift+F13` (derecha) /
-  `Ctrl+Shift+F14` (izquierda) y los scripts lo traducen (ver receta "Tilt
+  adoptada: el tilt se reasigna en Synapse a `Shift+F13` (derecha) /
+  `Shift+F14` (izquierda) y los scripts lo traducen (ver receta "Tilt
   reasignado a teclado" arriba). Así funciona igual en Windows y Linux. Requiere
   que esa reasignación esté guardada en la memoria onboard del ratón.
 
