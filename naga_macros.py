@@ -84,8 +84,9 @@ ZOOM_STEPS = 1
 # Desplazamiento lateral continuo (tilt SIN hypershift). El tilt se reasigna en
 # Synapse a Shift+F13 (derecha) / Shift+F14 (izquierda) y aqui se traduce a
 # scroll horizontal repetido mientras se mantiene inclinado.
-TILT_SCROLL_INTERVAL = 0.06   # segundos entre cada paso (mayor = mas lento)
+TILT_SCROLL_INTERVAL = 0.1    # segundos entre cada paso (mayor = mas lento)
 TILT_SCROLL_STEPS = 1         # cuanto desplaza cada paso (mismo valor ambos lados)
+HI_RES_PER_STEP = 120         # unidades hi-res por muesca (constante del kernel)
 
 # Comando para abrir el historial del portapapeles (HS2 + clic derecho).
 # Requiere un gestor instalado. Ejemplos:
@@ -217,6 +218,21 @@ class NagaMacros:
         self.ui.write(e.EV_KEY, code, value)
         self.ui.syn()
 
+    def hscroll(self, steps):
+        """Scroll horizontal de `steps` muescas.
+
+        CRITICO: hay que emitir el evento de ALTA RESOLUCION ademas del legacy.
+        Nuestro uinput declara REL_HWHEEL_HI_RES, y libinput, en cuanto un
+        dispositivo anuncia hi-res, usa SOLO ese eje y DESCARTA los REL_HWHEEL
+        legacy (los considera derivados). Mandando solo el legacy no se movia
+        nada. Los mouses reales mandan los dos en el mismo frame, igual que aqui;
+        no duplica el scroll porque libinput ignora el legacy si hay hi-res.
+        """
+        if REL_HWHEEL_HI is not None:
+            self.ui.write(e.EV_REL, REL_HWHEEL_HI, steps * HI_RES_PER_STEP)
+        self.ui.write(e.EV_REL, e.REL_HWHEEL, steps)
+        self.ui.syn()
+
     def once(self, name, func):
         """Ejecuta func solo la primera vez del tilt (anti-repeticion)."""
         now = monotonic()
@@ -307,8 +323,7 @@ class NagaMacros:
 
             # scroll lateral continuo mientras se mantiene el tilt
             if self.scroll_dir and now >= self.next_scroll:
-                self.ui.write(e.EV_REL, e.REL_HWHEEL, self.scroll_dir)
-                self.ui.syn()
+                self.hscroll(self.scroll_dir)
                 self.next_scroll = now + TILT_SCROLL_INTERVAL
 
             for fd in r:

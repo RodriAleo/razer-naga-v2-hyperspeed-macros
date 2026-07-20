@@ -9,7 +9,8 @@ Hay **dos implementaciones equivalentes** que deben mantenerse sincronizadas:
 | Archivo | Sistema | Cómo recargar / probar |
 |---------|---------|------------------------|
 | `NagaV2_Macros.ahk` | Windows (AutoHotkey v2) | Clic derecho en icono "H" → **Reload Script** |
-| `naga_macros.py` | Linux Wayland/X11 (Python `evdev`/`uinput`) | `sudo python3 naga_macros.py` |
+| `naga_macros.py` | Linux Wayland/X11 (Python `evdev`/`uinput`) | `systemctl --user restart naga-macros` (o `sudo -E python3 naga_macros.py`) |
+| `naga-macros.service` | Linux — unidad systemd de usuario (autoarranque) | `cp` a `~/.config/systemd/user/`, ajustar `ExecStart`, `enable --now` |
 | `NagaV2_atajos.png` | Guía de atajos visual (la abre el Botón 5) | Se **regenera** con `generar_guia_atajos.ps1` |
 | `generar_guia_atajos.ps1` | Generador de la imagen | `powershell -ExecutionPolicy Bypass -File generar_guia_atajos.ps1` |
 | `README.md` | Documentación de usuario | — |
@@ -124,9 +125,21 @@ Luego, si procede: `git add . && git commit`.
     soltado, dejando el scroll trabado. `scrollLado` lleva el estado; un `#HotIf
     (scrollLado=...)` ignora las auto-repeticiones de la F-key (botones 1/2).
   - Linux (Python): bucle `run()` con un deadline `self.next_scroll` (intervalo
-    `TILT_SCROLL_INTERVAL`), emitiendo `REL_HWHEEL`; se frena al recibir el
-    soltado (`value == 0`) de `scroll_key`. Sin problema de zoom: los
+    `TILT_SCROLL_INTERVAL`), llamando a `self.hscroll(...)`; se frena al recibir
+    el soltado (`value == 0`) de `scroll_key`. Sin problema de zoom: los
     modificadores del combo se capturan (grab) y nunca llegan al compositor.
+- **⚠️ Scroll sintético en Linux — SIEMPRE emitir el evento de alta resolución:**
+  el `UInput` declara `REL_WHEEL_HI_RES`/`REL_HWHEEL_HI_RES`, y **libinput, en
+  cuanto un dispositivo anuncia hi-res, usa SOLO ese eje y DESCARTA los
+  `REL_WHEEL`/`REL_HWHEEL` clásicos** (los considera derivados). Emitir solo el
+  evento clásico hace que el scroll **no se mueva en absoluto** (bug real: el
+  desplazamiento lateral del tilt no funcionaba). El helper `hscroll(steps)`
+  manda los dos en el mismo frame — `REL_HWHEEL_HI_RES = steps * HI_RES_PER_STEP`
+  (120 = 1 muesca, constante del kernel) y `REL_HWHEEL = steps` — igual que un
+  ratón real; no duplica el scroll porque libinput ignora el clásico si hay
+  hi-res. El scroll vertical normal no sufría esto porque se **reenvía tal cual**
+  llega del ratón (ya trae sus propios eventos hi-res). Si algún día se añade
+  scroll vertical sintético, hay que hacer lo mismo con `REL_WHEEL_HI_RES`.
 - **Anti-repetición del tilt (en hypershift):** mantener el tilt genera muchos
   eventos. Copiar, pegar y cambio de pista se ejecutan UNA vez por inclinación
   (AHK: función `TiltUnaVez`; Python: `self.once(...)`). El zoom y el volumen
@@ -154,7 +167,28 @@ Luego, si procede: `git add . && git commit`.
 - **Prioridad de scheduling en Linux:**
   El script llama `os.sched_setscheduler(0, os.SCHED_FIFO, os.sched_param(10))`
   al arrancar (requiere root). Reduce la latencia de respuesta evitando que el
-  kernel desaloje el proceso mientras procesa un evento de entrada.
+  kernel desaloje el proceso mientras procesa un evento de entrada. **Corriendo
+  como servicio de usuario (sin root) esto falla y solo imprime un aviso** — es
+  inofensivo, solo se pierde la optimización de latencia.
+- **Bandeja del sistema y reconexión (Linux):** `main()` levanta un hilo
+  `_worker` con el bucle de macros y deja el hilo principal para `pystray`
+  (lo exige la librería). Puntos a respetar:
+  - `pystray`/`Pillow` son **opcionales**: si no están, `_HAS_TRAY` es `False` y
+    `_worker()` corre en primer plano. No romper ese camino.
+  - Ícono **verde** = ratón detectado y activo; **naranja** = esperando ratón.
+  - Si el Naga no está o se desconecta, `_open_devices()`/`run()` lanzan
+    `OSError(errno 19)` y `_worker` espera con `_wait_for_naga()` (que además
+    exige que el dispositivo siga presente tras `settle` segundos, porque el
+    kernel registra las 5 interfaces de forma escalonada).
+  - "Reiniciar" del menú solo hace `_stop.set()`: `run()` sale y el worker crea
+    una instancia nueva. Por eso el `select()` de `run()` lleva un tope de 0.25 s,
+    para mirar `_stop` con frecuencia.
+  - El menú **Salir** termina con código 0 → la unidad systemd usa
+    `Restart=on-failure` (no `always`) para que quedarse cerrado sea posible.
+- **Fallback de detección de dispositivo:** si ningún dispositivo tiene "naga" en
+  el nombre, se busca uno con `KEY_F13` **y sin `KEY_A`**. El `sin KEY_A` excluye
+  teclados reales (p. ej. Logitech) que también declaran F13 y que si no serían
+  capturados por error, dejando el teclado inservible.
 
 ## Diferencias de plataforma a recordar
 
@@ -177,4 +211,21 @@ Luego, si procede: `git add . && git commit`.
 - **Windows:** acceso directo del `.ahk` en `shell:startup`
   (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`). Si se mueve el
   repo, rehacer el acceso directo (apunta por ruta absoluta).
-- **Linux:** servicio systemd de usuario (ver `README.md`).
+- **Linux:** servicio systemd **de usuario**, versionado en el repo como
+  `naga-macros.service` (instrucciones de instalación en `README.md`). Es de
+  usuario y no de sistema a propósito: el ícono de bandeja y la inyección de
+  teclas necesitan la sesión gráfica. Tres ajustes que no hay que cambiar sin
+  entender por qué:
+  - `WantedBy=/After=/PartOf=graphical-session.target` (**no** `default.target`):
+    con `default.target` arranca antes de que exista la sesión gráfica y el
+    ícono de bandeja no aparece.
+  - `Environment=PYTHONUNBUFFERED=1`: sin esto Python bufferiza `stdout` al no
+    haber tty y los `print()` solo llegan al journal cuando el proceso muere
+    (despista mucho al depurar: parece que el script no imprime nada).
+  - `Restart=on-failure` (**no** `always`): el menú "Salir" sale con código 0 y
+    debe quedarse cerrado.
+  - `ExecStart` debe apuntar al intérprete que tenga `evdev`/`pystray`/`Pillow`
+    (si es conda o venv, a ESE python). La copia instalada vive en
+    `~/.config/systemd/user/` y **no** se actualiza sola al cambiar la del repo.
+  - Tras editar `naga_macros.py`: `systemctl --user restart naga-macros`.
+    Ver log en vivo: `journalctl --user -u naga-macros -f`.

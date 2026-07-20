@@ -1,0 +1,34 @@
+; Servicio systemd de USUARIO para arrancar las macros al iniciar sesion.
+;
+; Instalacion:
+;   cp naga-macros.service ~/.config/systemd/user/
+;   # ajusta ExecStart a tu interprete y a la ruta real del repo
+;   systemctl --user daemon-reload
+;   systemctl --user enable --now naga-macros.service
+;
+; Es un servicio de USUARIO (no de sistema) a proposito: el icono de bandeja y
+; la inyeccion de teclas necesitan la sesion grafica del usuario.
+
+[Unit]
+Description=Macros Razer Naga V2 Hyperspeed
+; graphical-session (NO default.target): el icono de bandeja necesita que la
+; sesion grafica ya exista. Con default.target el servicio arrancaria antes y
+; el icono no aparece.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+; Ajusta ambas rutas: el interprete debe ser el que tenga evdev, pystray y
+; Pillow instalados (si usas conda/venv, apunta a ESE python, no a /usr/bin).
+ExecStart=/usr/bin/python3 %h/ruta/al/repo/naga_macros.py
+; Sin esto, Python bufferiza stdout al no haber tty y los mensajes solo
+; aparecen en el journal cuando el proceso muere.
+Environment=PYTHONUNBUFFERED=1
+; on-failure (NO always): salir desde el menu "Salir" de la bandeja termina con
+; codigo 0 y debe quedarse cerrado. Con "always" systemd lo relanzaria y no se
+; podria cerrar desde el icono.
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

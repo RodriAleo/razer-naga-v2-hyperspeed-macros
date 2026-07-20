@@ -177,24 +177,39 @@ Clic derecho sobre el ícono para acceder al menú **Reiniciar** / **Salir**.
    ```
 
 ### Arranque automático (servicio systemd de usuario)
-Crea `~/.config/systemd/user/naga-macros.service`:
+El repo incluye la unidad lista: **`naga-macros.service`**.
 
-```ini
-[Unit]
-Description=Macros Razer Naga V2
-
-[Service]
-ExecStart=/usr/bin/python3 %h/ruta/al/repo/naga_macros.py
-Restart=on-failure
-
-[Install]
-WantedBy=default.target
-```
-Actívalo:
 ```bash
+cp naga-macros.service ~/.config/systemd/user/
+# edita ExecStart: pon tu intérprete y la ruta real del repo
 systemctl --user daemon-reload
 systemctl --user enable --now naga-macros.service
 ```
+
+Con esto las macros arrancan solas **cada vez que inicias sesión**. Comprobar
+estado y ver los mensajes en vivo:
+
+```bash
+systemctl --user status naga-macros.service
+journalctl --user -u naga-macros -f
+```
+
+Detalles de la unidad que conviene no cambiar a la ligera:
+
+| Ajuste | Por qué |
+|--------|---------|
+| `WantedBy=graphical-session.target` | El ícono de bandeja necesita que la sesión gráfica ya exista. Con `default.target` el servicio arranca antes y el ícono no aparece. |
+| `Environment=PYTHONUNBUFFERED=1` | Sin esto Python bufferiza `stdout` (no hay tty) y los mensajes solo aparecen en el journal cuando el proceso muere. |
+| `Restart=on-failure` | Salir desde el menú **Salir** de la bandeja termina con código 0 y debe quedarse cerrado. Con `Restart=always` systemd lo relanzaría y no podrías cerrarlo desde el ícono. |
+
+> **`ExecStart` debe apuntar al intérprete que tenga `evdev`, `pystray` y
+> `Pillow` instalados.** Si usas conda o un venv, pon la ruta de *ese* python
+> (ej. `~/miniconda3/bin/python3`), no `/usr/bin/python3`.
+
+> Como es un servicio de **usuario**, corre sin `sudo`: necesita que hayas hecho
+> los dos pasos de *Ejecutar sin `sudo`* de arriba. Sin root no puede fijar la
+> prioridad en tiempo real (`SCHED_FIFO`) y avisa por el log; es inofensivo,
+> solo se pierde una pequeña optimización de latencia.
 
 ---
 
@@ -213,14 +228,23 @@ systemctl --user enable --now naga-macros.service
 
 - **Selector Alt+Tab persistente (botones 2 y 3):** mantiene `Alt` pulsado
   entre pulsaciones y lo suelta tras un periodo de inactividad
-  (`ALTTAB_TIMEOUT`, por defecto 0.8 s). En AHK requiere el prefijo `*` y el
-  modo `{Blind}` para no cerrar el selector en cada pulsación.
+  (`ALTTAB_TIMEOUT`, por defecto 0.8 s). En AHK se declaran **dos hotkeys por
+  botón** (`F14::` y `!F14::`) más el modo `{Blind}`, para no cerrar el selector
+  en cada pulsación. No se usa el comodín `*F14::` porque capturaría también
+  `Shift+F14`, que es el tilt izquierdo.
 - **Hypershift:** los botones 10 y 11 actúan como modificador mientras se
   mantienen pulsados; la rueda/tilt/clics cambian de función y el scroll
   normal se suprime.
 - **Anti-repetición del tilt:** mantener el tilt genera muchos eventos
   seguidos; copiar, pegar y cambio de pista se ejecutan **una sola vez** por
   inclinación (`TILT_DEBOUNCE`, por defecto 0.4 s).
+- **Scroll lateral en Linux — se emite en alta resolución:** el desplazamiento
+  lateral del tilt manda `REL_HWHEEL_HI_RES` (120 unidades por muesca) **además**
+  del `REL_HWHEEL` clásico. Es obligatorio: como el dispositivo virtual declara
+  el eje de alta resolución, libinput usa solo ese y descarta los eventos
+  clásicos, así que mandando únicamente `REL_HWHEEL` no se movía nada. Los
+  ratones reales mandan los dos juntos igual que aquí, y no se duplica el
+  scroll.
 
 ---
 
@@ -230,6 +254,7 @@ systemctl --user enable --now naga-macros.service
 .
 ├── NagaV2_Macros.ahk        # Windows (AutoHotkey v2)
 ├── naga_macros.py           # Linux (Python evdev/uinput)
+├── naga-macros.service      # Linux: unidad systemd de usuario (autoarranque)
 ├── generar_guia_atajos.ps1  # Genera la imagen NagaV2_atajos.png
 ├── NagaV2_atajos.png        # Guía de atajos (la abre el Botón 5)
 ├── CLAUDE.md                # Contexto para mantener el repo
