@@ -4,12 +4,40 @@ Macros para los **12 botones laterales** del ratón Razer Naga V2 Hyperspeed,
 con dos modos **Hypershift**, un selector **Alt+Tab persistente** y soporte
 para el **tilt** de la rueda.
 
-El mismo conjunto de atajos está implementado para los dos sistemas:
+El mismo conjunto de atajos está implementado en tres versiones equivalentes,
+cada una en su carpeta:
 
-| Sistema | Archivo | Tecnología |
+| Sistema | Carpeta | Tecnología |
 |---------|---------|------------|
-| **Windows** | [`NagaV2_Macros.ahk`](NagaV2_Macros.ahk) | AutoHotkey v2 |
-| **Linux** (Wayland/X11) | [`naga_macros.py`](naga_macros.py) | Python + `evdev`/`uinput` |
+| **Windows** (recomendada) | [`windows-python/`](windows-python/) | Python + `ctypes` — **sin AutoHotkey** |
+| **Windows** (original) | [`windows-ahk/`](windows-ahk/) | AutoHotkey v2 |
+| **Linux** (Wayland/X11) | [`linux/`](linux/) | Python + `evdev`/`uinput` |
+
+```
+├── windows-python/          ← versión recomendada para Windows
+│   ├── naga_macros_win.py       el demonio de macros
+│   ├── NagaV2_Macros_Win.vbs    lanzador (doble clic, sin consola)
+│   ├── autoarranque.ps1         activa/desactiva el inicio con Windows
+│   └── NagaV2_atajos.png        guía de atajos (la abre el Botón 5)
+├── windows-ahk/
+│   ├── NagaV2_Macros.ahk
+│   └── NagaV2_atajos.png
+├── linux/
+│   ├── naga_macros.py
+│   ├── naga-macros.service      unidad systemd (autoarranque)
+│   └── NagaV2_atajos.png
+└── generar_guia_atajos.py   ← regenera la imagen en las 3 carpetas
+```
+
+> La imagen está repetida a propósito en cada carpeta: el **Botón 5** la abre
+> con una ruta relativa al script, así cada versión es autocontenida.
+
+> **¿Por qué dos versiones para Windows?** Algunos **anticheat** de juegos no
+> arrancan si detectan AutoHotkey, obligando a cerrarlo y reabrirlo cada vez.
+> La versión en Python es un proceso normal y hace exactamente lo mismo, así que
+> no hace falta estar activando y desactivando nada. El `.ahk` se mantiene para
+> quien lo prefiera; **usa una sola de las dos a la vez** (si no, cada tecla se
+> procesaría dos veces).
 
 ---
 
@@ -89,23 +117,83 @@ Correspondencia botón → tecla:
 >
 > **No agregues `Ctrl` al combo:** en Windows `Ctrl`+rueda = zoom y no se puede
 > evitar de forma fiable si Synapse mantiene `Ctrl` pulsado durante el tilt. Con
-> solo `Shift`, la rueda vertical se convierte en scroll horizontal nativo (así
-> lo hace el `.ahk`), sin zoom. En Linux da igual (los modificadores se capturan),
-> pero se usa `Shift` en ambos para tener un único binding.
+> solo `Shift` no hay zoom; el `Shift` sirve únicamente para distinguir el tilt
+> del botón (los scripts mandan rueda horizontal nativa, que no depende de
+> modificadores). En Linux da igual (los modificadores se capturan), pero se usa
+> `Shift` en las tres versiones para tener un único binding.
 >
 > Con esto el tilt funciona **igual en Windows y Linux** (antes el tilt derecho
 > se perdía en Linux). La velocidad del scroll lateral se ajusta con
-> `SCROLL_INTERVALO` (AHK) y `TILT_SCROLL_INTERVAL` (Python).
+> `SCROLL_INTERVALO` (AHK) y `TILT_SCROLL_INTERVAL` (ambos Python).
 
 ---
 
-## Windows
+## Windows — versión Python (recomendada, sin AutoHotkey)
+
+Pensada para no tener que cerrar nada al jugar: es un proceso Python normal,
+así que los anticheat que bloquean AutoHotkey no la afectan.
+
+### Requisitos
+- **Python 3.8+** ([python.org](https://www.python.org/downloads/) — marca
+  *"Add Python to PATH"* al instalar).
+- Nada más: el núcleo usa solo `ctypes` (incluido en Python).
+- *Opcional*, para el icono en la bandeja del sistema:
+  ```bash
+  pip install pystray pillow
+  ```
+
+### Uso
+Doble clic en **`windows-python/NagaV2_Macros_Win.vbs`** (arranca sin ventana
+de consola).
+
+Si instalaste `pystray`, aparece un icono verde en la bandeja con el menú
+*Abrir guía de atajos* / *Salir*. Sin él funciona igual, pero para cerrarlo
+tendrás que finalizar `pythonw.exe` en el Administrador de tareas.
+
+Para ver los mensajes (diagnóstico), ejecútalo desde una terminal:
+
+```bash
+python windows-python/naga_macros_win.py
+```
+
+### Arranque automático con Windows
+
+Desde la carpeta `windows-python/`:
+
+```bash
+powershell -ExecutionPolicy Bypass -File autoarranque.ps1
+```
+
+Eso crea un acceso directo en la carpeta de Inicio del usuario
+(`shell:startup`); las macros arrancarán solas al iniciar sesión. No requiere
+permisos de administrador ni toca el registro.
+
+| Acción | Comando |
+|--------|---------|
+| Activar | `powershell -ExecutionPolicy Bypass -File autoarranque.ps1` |
+| Desactivar | `powershell -ExecutionPolicy Bypass -File autoarranque.ps1 -Quitar` |
+| Ver estado | `powershell -ExecutionPolicy Bypass -File autoarranque.ps1 -Estado` |
+
+> Si **mueves el repo** de carpeta, vuelve a ejecutar el script: el acceso
+> directo guarda una ruta absoluta.
+
+También puedes hacerlo a mano: `Win + R` → `shell:startup` → y copiar ahí un
+acceso directo de `NagaV2_Macros_Win.vbs`.
+
+### Ajustes
+Edita las constantes al principio de `naga_macros_win.py`:
+`ALTTAB_TIMEOUT`, `TILT_DEBOUNCE`, `WHEEL_STEPS`, `ZOOM_STEPS`,
+`TILT_SCROLL_INTERVAL` / `TILT_SCROLL_STEPS` (velocidad del scroll lateral).
+
+---
+
+## Windows — versión AutoHotkey (original)
 
 ### Requisitos
 - [AutoHotkey **v2**](https://www.autohotkey.com/) (¡v2, no v1!).
 
 ### Uso
-1. Doble clic en `NagaV2_Macros.ahk`.
+1. Doble clic en `windows-ahk/NagaV2_Macros.ahk`.
 2. Aparece un icono verde **"H"** en la bandeja del sistema.
 3. Tras editar el script: clic derecho en el icono → **Reload Script**.
 
@@ -119,8 +207,9 @@ A partir de entonces el script se lanza solo al iniciar sesión.
 Para desactivarlo: borra el acceso directo de esa carpeta (o desde
 **Administrador de tareas → Inicio**).
 
-> La guía de atajos (`NagaV2_atajos.png`) debe estar **en la misma carpeta** que el
-> `.ahk`, porque el Botón 5 la abre con `A_ScriptDir`.
+> ⚠️ **No ejecutes las dos versiones de Windows a la vez**: ambas capturan las
+> mismas teclas y cada pulsación se procesaría dos veces. Si activaste el
+> autoarranque de una, desactiva el de la otra.
 
 ---
 
@@ -141,11 +230,11 @@ Para que el ícono aparezca en GNOME Shell también necesitas la extensión
 Si no la tienes instalada el script funciona igualmente, solo que sin ícono.
 
 > **Nota con `sudo`:** para que el ícono sea visible debes preservar las
-> variables de sesión del usuario: `sudo -E python3 naga_macros.py`.
+> variables de sesión del usuario: `sudo -E python3 linux/naga_macros.py`.
 > Alternativamente, sigue la sección *Ejecutar sin sudo* más abajo.
 
 ### Configuración
-Edita las constantes al principio de `naga_macros.py`:
+Edita las constantes al principio de `linux/naga_macros.py`:
 
 - `IMAGE_PATH` → por defecto apunta a `NagaV2_atajos.png` junto al script (igual que en Windows). Solo cámbialo si la imagen está en otra ubicación.
 - `DEVICE_NAME_CONTAINS` → texto del nombre del ratón (por defecto `"naga"`).
@@ -154,7 +243,7 @@ Edita las constantes al principio de `naga_macros.py`:
 
 ### Uso
 ```bash
-sudo -E python3 naga_macros.py
+sudo -E python3 linux/naga_macros.py
 ```
 Al arrancar imprime los dispositivos detectados (el Naga debe aparecer, y la
 interfaz de ratón marcada como `(capturado)`). Si `pystray` y `Pillow` están
@@ -177,10 +266,10 @@ Clic derecho sobre el ícono para acceder al menú **Reiniciar** / **Salir**.
    ```
 
 ### Arranque automático (servicio systemd de usuario)
-El repo incluye la unidad lista: **`naga-macros.service`**.
+El repo incluye la unidad lista: **`linux/naga-macros.service`**.
 
 ```bash
-cp naga-macros.service ~/.config/systemd/user/
+cp linux/naga-macros.service ~/.config/systemd/user/
 # edita ExecStart: pon tu intérprete y la ruta real del repo
 systemctl --user daemon-reload
 systemctl --user enable --now naga-macros.service
@@ -210,6 +299,27 @@ Detalles de la unidad que conviene no cambiar a la ligera:
 > los dos pasos de *Ejecutar sin `sudo`* de arriba. Sin root no puede fijar la
 > prioridad en tiempo real (`SCHED_FIFO`) y avisa por el log; es inofensivo,
 > solo se pierde una pequeña optimización de latencia.
+
+---
+
+## Regenerar la guía de atajos
+
+La imagen `NagaV2_atajos.png` (la que abre el **Botón 5**) se genera con
+**`generar_guia_atajos.py`**, en la raíz del repo:
+
+```bash
+python generar_guia_atajos.py
+```
+
+Escribe la imagen en **las tres carpetas** de una sola pasada
+(`windows-python/`, `windows-ahk/`, `linux/`), porque cada script la abre desde
+su propio directorio.
+
+Requiere Pillow (`pip install pillow`). Funciona en Windows y en Linux: si no
+encuentra la fuente *Segoe UI* usa una alternativa del sistema.
+
+Para cambiar el contenido, edita las listas `CELDAS` y `SECCIONES` al principio
+del archivo y vuelve a ejecutarlo.
 
 ---
 

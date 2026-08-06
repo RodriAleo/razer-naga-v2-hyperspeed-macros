@@ -20,7 +20,7 @@ PartOf=graphical-session.target
 [Service]
 ; Ajusta ambas rutas: el interprete debe ser el que tenga evdev, pystray y
 ; Pillow instalados (si usas conda/venv, apunta a ESE python, no a /usr/bin).
-ExecStart=/usr/bin/python3 %h/ruta/al/repo/naga_macros.py
+ExecStart=/usr/bin/python3 %h/ruta/al/repo/linux/naga_macros.py
 ; Sin esto, Python bufferiza stdout al no haber tty y los mensajes solo
 ; aparecen en el journal cuando el proceso muere.
 Environment=PYTHONUNBUFFERED=1
