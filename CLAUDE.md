@@ -233,6 +233,21 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   agota repetidamente, **deja de llamarlo** (las macros dejarían de responder).
 - **Lanzador sin consola:** `NagaV2_Macros_Win.vbs` ejecuta `pythonw.exe`. Para
   el autoarranque va un acceso directo del `.vbs` en `shell:startup`.
+- **Overlay de la guía (Botón 5 mantenido) — `GuiaOverlay`:** Tk **no es
+  thread-safe** y quiere su propio `mainloop`, así que vive en un hilo dedicado;
+  el hook solo levanta/baja un `Event` y el hilo de Tk lo sondea cada 30 ms.
+  **Nunca llamar a Tk desde el hook.**
+  ⚠️ La ventana lleva **`WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`**: si robara el
+  foco, la app activa pasaría a ser este proceso y `app_en_foco()` devolvería
+  `python.exe`, rompiendo el zoom por aplicación; además saldría en el Alt+Tab
+  del Botón 1. Si falta tkinter o la imagen no carga, `guia_mostrar()` cae al
+  visor del sistema (`os.startfile`) y se avisa por consola.
+- **Reiniciar desde la bandeja (`relanzar()`):** el orden es **cerrar primero**
+  (icono, hooks, modificadores colgados) y **lanzar la instancia nueva después**.
+  Si se solapan, ambas instalan hooks y gana la que Windows tenga primera en la
+  cadena — con la vieja ganando, los cambios recién hechos no se ven (pasó de
+  verdad con dos instancias abiertas a la vez). Termina con `os._exit(0)` para
+  no volver por el flujo normal de `main()`.
 
 ### Comunes a las tres implementaciones
 

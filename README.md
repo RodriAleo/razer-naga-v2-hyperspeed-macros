@@ -147,8 +147,21 @@ Doble clic en **`windows-python/NagaV2_Macros_Win.vbs`** (arranca sin ventana
 de consola).
 
 Si instalaste `pystray`, aparece un icono verde en la bandeja con el menú
-*Abrir guía de atajos* / *Salir*. Sin él funciona igual, pero para cerrarlo
-tendrás que finalizar `pythonw.exe` en el Administrador de tareas.
+*Abrir guía de atajos* / *Reiniciar* / *Salir*. Sin él funciona igual, pero para
+cerrarlo tendrás que finalizar `pythonw.exe` en el Administrador de tareas.
+
+> **Reiniciar** vuelve a cargar el script desde disco: úsalo después de editar
+> `naga_macros_win.py` o de hacer `git pull`. Un proceso en marcha conserva el
+> código que cargó al arrancar.
+
+### La guía de atajos como overlay (Botón 5)
+
+Al **mantener pulsado el Botón 5** la guía aparece flotando en el centro de la
+pantalla, y desaparece al soltarlo. No roba el foco: la aplicación en la que
+estabas sigue activa, así que puedes consultarla sin interrumpir lo que hacías.
+
+Usa `tkinter` (viene con Python). Si no estuviera disponible, el Botón 5 abre la
+imagen con el visor del sistema, como antes.
 
 Para ver los mensajes (diagnóstico), ejecútalo desde una terminal:
 

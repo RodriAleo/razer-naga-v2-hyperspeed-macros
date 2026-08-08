@@ -52,6 +52,7 @@ import os
 import sys
 import ctypes
 import threading
+import subprocess
 from ctypes import wintypes
 from time import monotonic
 
@@ -372,6 +373,127 @@ def app_en_foco():
 
 
 # ============================================================
+#  Overlay de la guia de atajos (Boton 5 mantenido)
+# ============================================================
+class GuiaOverlay:
+    """Muestra NagaV2_atajos.png como ventana flotante mientras se mantiene el
+    Boton 5, y la oculta al soltarlo.
+
+    Tk NO es thread-safe y quiere su propio hilo con su mainloop, asi que vive
+    en un hilo dedicado y el hook solo levanta/baja un Event; el hilo de Tk lo
+    sondea. Nada de llamar a Tk desde el hook.
+
+    ⚠️ La ventana se marca WS_EX_NOACTIVATE: si robara el foco, la app activa
+    cambiaria a este proceso y (entre otras cosas) app_en_foco() devolveria
+    python.exe, rompiendo el zoom por aplicacion.
+    """
+
+    def __init__(self, ruta):
+        self.ruta = ruta
+        self.error = None
+        self._pedir = threading.Event()     # True = deberia estar visible
+        self._listo = threading.Event()     # el hilo de Tk ya arranco
+        self.visible = False                # estado real (lo fija el hilo Tk)
+        self._t = threading.Thread(target=self._loop, daemon=True)
+        self._t.start()
+        self._listo.wait(timeout=5)
+
+    # --- API para el hook (no toca Tk) ---
+    def mostrar(self):
+        self._pedir.set()
+
+    def ocultar(self):
+        self._pedir.clear()
+
+    @property
+    def disponible(self):
+        return self.error is None
+
+    # --- hilo propio de Tk ---
+    def _loop(self):
+        try:
+            import tkinter as tk
+        except ImportError:
+            self.error = "tkinter no esta disponible"
+            self._listo.set()
+            return
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.overrideredirect(True)         # sin barra de titulo
+            root.attributes("-topmost", True)
+            root.title("Naga V2 - Guia de atajos")
+            root.configure(bg="black")
+
+            img = self._cargar(tk, root)
+            ancho, alto = img.width(), img.height()
+            lbl = tk.Label(root, image=img, bd=0, highlightthickness=0, bg="black")
+            lbl.image = img                     # referencia viva (si no, se borra)
+            lbl.pack()
+
+            x = (root.winfo_screenwidth() - ancho) // 2
+            y = (root.winfo_screenheight() - alto) // 2
+            root.geometry(f"{ancho}x{alto}+{x}+{y}")
+            root.attributes("-alpha", 0.96)
+            self._sin_foco(root)
+        except Exception as ex:
+            self.error = str(ex)
+            self._listo.set()
+            return
+
+        self._listo.set()
+
+        def tick():
+            quiere = self._pedir.is_set()
+            if quiere and not self.visible:
+                root.deiconify()
+                root.lift()
+                root.attributes("-topmost", True)
+                self.visible = True
+            elif not quiere and self.visible:
+                root.withdraw()
+                self.visible = False
+            root.after(30, tick)
+
+        root.after(30, tick)
+        root.mainloop()
+
+    def _cargar(self, tk, root):
+        """PhotoImage lee PNG en Tk 8.6+. Si la imagen no entra en la pantalla
+        (o Tk no puede con el PNG) se recurre a Pillow para escalarla."""
+        pantalla_h = root.winfo_screenheight()
+        maximo = int(pantalla_h * 0.9)
+        try:
+            img = tk.PhotoImage(file=self.ruta)
+            if img.height() <= maximo:
+                return img
+            factor = max(2, -(-img.height() // maximo))   # division hacia arriba
+            return img.subsample(factor, factor)          # entero: sin Pillow
+        except Exception:
+            from PIL import Image as _Im, ImageTk
+            im = _Im.open(self.ruta)
+            if im.height > maximo:
+                escala = maximo / im.height
+                im = im.resize((int(im.width * escala), maximo), _Im.LANCZOS)
+            return ImageTk.PhotoImage(im)
+
+    @staticmethod
+    def _sin_foco(root):
+        """WS_EX_NOACTIVATE + TOOLWINDOW: la ventana no roba el foco ni sale en
+        Alt+Tab (importante: el Boton 1 es justamente Alt+Tab)."""
+        try:
+            GWL_EXSTYLE = -20
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW = 0x08000000, 0x00000080
+            hwnd = int(root.winfo_id())
+            get_ = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+            set_ = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+            set_(hwnd, GWL_EXSTYLE,
+                 get_(hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
+        except Exception:
+            pass
+
+
+# ============================================================
 #  Logica de macros (equivalente al .ahk)
 # ============================================================
 class NagaMacros:
@@ -395,6 +517,10 @@ class NagaMacros:
         # ¿La app en foco necesita Ctrl+rueda para el zoom? (ZOOM_CON_RUEDA)
         # Se resuelve al activar el Hypershift 2, no en cada muesca.
         self.zoom_con_rueda = False
+
+        # Overlay de la guia de atajos (Boton 5). Se crea perezosamente en
+        # main() para no pagar el arranque de Tk si no se usa.
+        self.overlay = None
 
         self._lock = threading.RLock()
 
@@ -441,16 +567,29 @@ class NagaMacros:
             self.alttab(forward=False)
         elif n == 3:                          # selector ->
             self.alttab(forward=True)
-        elif n == 5:                          # abrir guia de atajos
-            try:
-                os.startfile(IMAGE_PATH)
-            except OSError as ex:
-                print(f"No pude abrir la guia: {ex}")
+        elif n == 5:                          # guia de atajos (ver guia_*)
+            self.guia_mostrar()
         elif n == 7:                          # pantalla completa
             tap(VK["F11"])
         elif n == 12:                         # vista de tareas (Win+Tab)
             tap(VK["LWIN"], VK["TAB"])
         # 4, 6, 8, 9 -> LIBRES (sin accion)
+
+    # ---------- guia de atajos (Boton 5) ----------
+    def guia_mostrar(self):
+        """Overlay mientras se mantiene el boton. Si el overlay no esta
+        disponible (sin tkinter), abre la imagen con el visor del sistema."""
+        if self.overlay is not None and self.overlay.disponible:
+            self.overlay.mostrar()
+            return
+        try:
+            os.startfile(IMAGE_PATH)
+        except OSError as ex:
+            print(f"No pude abrir la guia: {ex}")
+
+    def guia_ocultar(self):
+        if self.overlay is not None:
+            self.overlay.ocultar()
 
     # ---------- tilt (Shift+F13/F14) ----------
     def tilt(self, side):
@@ -573,6 +712,14 @@ class NagaMacros:
                 # sin llamadas a la API (menos latencia). La app en foco no
                 # cambia mientras se mantiene el hypershift.
                 self.zoom_con_rueda = app_en_foco() in ZOOM_CON_RUEDA
+            return True
+
+        # --- boton 5: la guia se muestra MIENTRAS se mantiene ---
+        if n == 5:
+            if is_down:
+                self.guia_mostrar()   # idempotente (aguanta auto-repeticiones)
+            else:
+                self.guia_ocultar()
             return True
 
         # --- botones simples ---
@@ -707,11 +854,48 @@ def _tray_image(color):
     return img
 
 
+def relanzar():
+    """Arranca una instancia nueva del script y devuelve True si lo consiguio.
+
+    ⚠️ Llamar SOLO despues de haber soltado los hooks: si las dos instancias
+    coexisten, ambas los instalan y gana la que Windows tenga primero en la
+    cadena (con la vieja ganando, los cambios recien hechos no se ven).
+    Se usa pythonw.exe si existe, para que no aparezca una consola."""
+    exe = sys.executable
+    sin_consola = os.path.join(os.path.dirname(exe), "pythonw.exe")
+    if os.path.exists(sin_consola):
+        exe = sin_consola
+    try:
+        DETACHED_PROCESS = 0x00000008
+        subprocess.Popen([exe, os.path.abspath(__file__)],
+                         close_fds=True, creationflags=DETACHED_PROCESS)
+        return True
+    except Exception as ex:
+        print(f"No pude relanzar el script: {ex}")
+        return False
+
+
 def run_tray(hooks, macros):
-    """Icono verde en la bandeja con menu Salir. Si pystray no esta instalado,
-    el programa funciona igual pero sin icono."""
+    """Icono verde en la bandeja con menu Reiniciar / Salir. Si pystray no esta
+    instalado, el programa funciona igual pero sin icono."""
     def on_guia(_i=None, _it=None):
-        macros.boton_simple(5)
+        # Desde el menu no hay tecla que mantener: se abre con el visor del
+        # sistema, que se cierra normalmente.
+        try:
+            os.startfile(IMAGE_PATH)
+        except OSError as ex:
+            print(f"No pude abrir la guia: {ex}")
+
+    def on_restart(icon, _it=None):
+        # El orden importa: primero se cierra TODO (icono, hooks, modificadores
+        # colgados) y solo despues se lanza la instancia nueva, para no tener
+        # dos juegos de hooks compitiendo ni un Alt/Ctrl pulsado sin dueño.
+        icon.stop()
+        hooks.stop()
+        macros.alttab_close()
+        macros.scroll_stop()
+        relanzar()
+        os._exit(0)          # salida inmediata: el relevo ya esta en marcha
 
     def on_quit(icon, _it=None):
         icon.stop()
@@ -721,6 +905,7 @@ def run_tray(hooks, macros):
         "naga_macros", _tray_image((68, 214, 44, 255)), "Naga V2 — Macros",
         menu=pystray.Menu(
             pystray.MenuItem("Abrir guia de atajos", on_guia, default=True),
+            pystray.MenuItem("Reiniciar", on_restart),
             pystray.MenuItem("Salir", on_quit),
         ))
     icon.run()
@@ -743,6 +928,17 @@ def main():
     sys.setswitchinterval(0.001)
 
     macros = NagaMacros()
+
+    # Overlay de la guia (Boton 5 mantenido). Si tkinter no esta o la imagen no
+    # se puede cargar, se avisa y el Boton 5 cae al visor del sistema.
+    if os.path.exists(IMAGE_PATH):
+        macros.overlay = GuiaOverlay(IMAGE_PATH)
+        if not macros.overlay.disponible:
+            print(f"(sin overlay: {macros.overlay.error}; "
+                  f"el Boton 5 abrira la imagen en el visor)")
+    else:
+        print(f"(no encuentro {IMAGE_PATH}; el Boton 5 no hara nada)")
+
     hooks = HookLoop(macros)
 
     if _HAS_TRAY:
