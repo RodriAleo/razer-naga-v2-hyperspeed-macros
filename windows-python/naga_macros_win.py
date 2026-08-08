@@ -90,6 +90,35 @@ TILT_SCROLL_STEPS = 1         # muescas por paso (mismo valor ambos lados)
 # auto-repeticion de la F-key, se corta igual (evita un scroll trabado). Debe
 # ser MAYOR que el retardo inicial de auto-repeticion de Windows (~0,5 s).
 TILT_WATCHDOG = 0.9
+
+# --- COMPORTAMIENTO POR APLICACION -------------------------------------
+# El zoom (Hypershift 2 + rueda) se manda por defecto como Ctrl + numpad +/-,
+# que es lo mas fiable en navegadores y editores. Pero algunas apps NO lo
+# soportan y solo hacen zoom con Ctrl + rueda; se listan aqui por el nombre de
+# su ejecutable (en minusculas).
+#
+# Para saber el nombre de una app: ponla en primer plano y ejecuta
+#   python -c "import naga_macros_win as m, time; time.sleep(3); print(m.app_en_foco())"
+# (tienes 3 segundos para hacer clic en su ventana).
+ZOOM_CON_RUEDA = {
+    "onenote.exe",        # OneNote de Office (escritorio)
+    "onenoteim.exe",      # OneNote para Windows 10/11 (Store)
+}
+
+# Cuanto se cachea la app en primer plano (segundos). Ver app_en_foco().
+APP_CACHE_TTL = 0.3
+
+# Cuanto zoom por muesca en las apps de ZOOM_CON_RUEDA. Se manda como un unico
+# evento de rueda con el delta completo. Subelo si quieres pasos mas grandes.
+ZOOM_RUEDA_STEPS = 1
+
+# Que teclas usa el zoom por teclado (todas las apps salvo ZOOM_CON_RUEDA).
+#   False -> "+/-" de la FILA PRINCIPAL (VK_OEM_PLUS/MINUS). Es lo que hacia el
+#            .ahk con Send("^-") y lo que esperan los navegadores; en Google Docs
+#            dentro de Edge da el zoom del documento.
+#   True  -> "+/-" del NUMPAD (VK_ADD/VK_SUBTRACT). Independiente del layout,
+#            pero algunas apps web lo tratan distinto.
+ZOOM_CON_NUMPAD = False
 # -----------------------------------------------
 
 
@@ -110,6 +139,12 @@ WM_MBUTTONUP, WM_RBUTTONUP = 0x0208, 0x0205
 # "up" se escapa, llega a la ventana que la macro acaba de abrir (p. ej. el
 # panel del portapapeles) y la cierra por clic-fuera.
 BOTON_UP = {WM_MBUTTONDOWN: WM_MBUTTONUP, WM_RBUTTONDOWN: WM_RBUTTONUP}
+
+# Ruta rapida del hook de raton: el ratón emite WM_MOUSEMOVE a ~1000 Hz y el
+# 99% de los eventos no nos interesan. Comprobar el mensaje ANTES de leer la
+# estructura evita ese trabajo en cada movimiento.
+MOUSE_INTERESANTES = frozenset((WM_MOUSEWHEEL, WM_MBUTTONDOWN, WM_RBUTTONDOWN,
+                                WM_MBUTTONUP, WM_RBUTTONUP))
 WM_QUIT = 0x0012
 LLKHF_INJECTED = 0x00000010
 LLMHF_INJECTED = 0x00000001
@@ -121,6 +156,7 @@ VK = {
     "F23": 0x86, "F24": 0x87,
     "F11": 0x7A, "TAB": 0x09, "SHIFT": 0x10, "CONTROL": 0x11, "MENU": 0x12,
     "LSHIFT": 0xA0, "RSHIFT": 0xA1,
+    "OEM_PLUS": 0xBB, "OEM_MINUS": 0xBD,   # fila principal (= y -)
     "LWIN": 0x5B, "C": 0x43, "V": 0x56, "Q": 0x51,
     "VOLUME_UP": 0xAF, "VOLUME_DOWN": 0xAE,
     "MEDIA_PLAY_PAUSE": 0xB3, "MEDIA_NEXT": 0xB0, "MEDIA_PREV": 0xB1,
@@ -183,6 +219,18 @@ user32.CallNextHookEx.argtypes = (wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM,
 user32.SendInput.restype = wintypes.UINT
 user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
 user32.GetAsyncKeyState.restype = ctypes.c_short
+# Deteccion de la app en primer plano (comportamiento por aplicacion)
+user32.GetForegroundWindow.restype = wintypes.HWND
+user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+user32.GetWindowThreadProcessId.argtypes = (wintypes.HWND,
+                                            ctypes.POINTER(wintypes.DWORD))
+kernel32.OpenProcess.restype = wintypes.HANDLE
+kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+kernel32.QueryFullProcessImageNameW.argtypes = (
+    wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+    ctypes.POINTER(wintypes.DWORD))
+kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
 
 # Marca propia: los eventos que inyectamos llevan esta firma en dwExtraInfo, para
 # que nuestro propio hook los ignore y no se realimente (bucle infinito).
@@ -202,8 +250,14 @@ def _key_input(vk, up=False):
     if vk in (VK["LWIN"], VK["MEDIA_NEXT"], VK["MEDIA_PREV"],
               VK["MEDIA_PLAY_PAUSE"], VK["VOLUME_UP"], VK["VOLUME_DOWN"]):
         flags |= KEYEVENTF_EXTENDEDKEY
+    # ⚠️ Rellenar wScan (no dejarlo en 0): las apps Chromium (Edge, Chrome,
+    # Electron) derivan el "code" del evento DOM del SCAN CODE, no del virtual
+    # key. Con wScan=0 pueden identificar mal la tecla; en Google Docs el zoom
+    # con Ctrl +/- no se comportaba como el del teclado fisico.
     return INPUT(type=INPUT_KEYBOARD,
-                 union=_INPUTunion(ki=KEYBDINPUT(wVk=vk, wScan=0, dwFlags=flags,
+                 union=_INPUTunion(ki=KEYBDINPUT(wVk=vk,
+                                                 wScan=user32.MapVirtualKeyW(vk, 0),
+                                                 dwFlags=flags,
                                                  time=0, dwExtraInfo=INJECTED_TAG)))
 
 
@@ -238,20 +292,83 @@ def tap_limpio(*vks):
     _send(*seq)
 
 
+def _wheel_input(horizontal, notches):
+    flag = MOUSEEVENTF_HWHEEL if horizontal else MOUSEEVENTF_WHEEL
+    data = ctypes.c_int32(notches * WHEEL_DELTA).value & 0xFFFFFFFF
+    return INPUT(type=INPUT_MOUSE,
+                 union=_INPUTunion(mi=MOUSEINPUT(dx=0, dy=0, mouseData=data,
+                                                 dwFlags=flag, time=0,
+                                                 dwExtraInfo=INJECTED_TAG)))
+
+
 def wheel(horizontal, notches):
     """Rueda sintetica. horizontal=True -> scroll lateral (WM_MOUSEHWHEEL).
     En horizontal, positivo = derecha; en vertical, positivo = arriba."""
-    flag = MOUSEEVENTF_HWHEEL if horizontal else MOUSEEVENTF_WHEEL
-    data = ctypes.c_int32(notches * WHEEL_DELTA).value & 0xFFFFFFFF
-    _send(INPUT(type=INPUT_MOUSE,
-                union=_INPUTunion(mi=MOUSEINPUT(dx=0, dy=0, mouseData=data,
-                                                dwFlags=flag, time=0,
-                                                dwExtraInfo=INJECTED_TAG))))
+    _send(_wheel_input(horizontal, notches))
+
+
+def wheel_ctrl(notches):
+    """Ctrl + rueda vertical: el gesto de zoom que esperan algunas apps
+    (OneNote, mapas, editores de imagen) y que NO responden a Ctrl+numpad+/-.
+
+    ⚠️ Los tres eventos van en UN solo SendInput a proposito. El estado del
+    teclado que ve la app esta sincronizado con el ORDEN de los mensajes, asi
+    que al procesar la rueda vera el Ctrl pulsado aunque para entonces ya se
+    haya soltado en tiempo real. Si el Ctrl↑ se manda por separado (p. ej. con
+    un temporizador o al soltar el hypershift) puede llegar ANTES de que la app
+    procese la rueda: entonces la lee sin Ctrl y en vez de zoom hace scroll.
+
+    Se manda UN evento de rueda con el delta completo (notches * 120) en vez de
+    varios de una muesca: menos mensajes que procesar = respuesta mas directa.
+    """
+    _send(_key_input(VK["CONTROL"]),
+          _wheel_input(False, notches),
+          _key_input(VK["CONTROL"], up=True))
 
 
 def is_physically_down(vk):
     """Estado fisico de la tecla (bit alto de GetAsyncKeyState)."""
     return bool(user32.GetAsyncKeyState(vk) & 0x8000)
+
+
+# ---------- aplicacion en primer plano ----------
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_app_cache = {"t": 0.0, "exe": ""}
+
+
+def app_en_foco():
+    """Nombre del ejecutable de la ventana activa, en minusculas
+    (p. ej. "onenote.exe"). Cadena vacia si no se puede averiguar.
+
+    El resultado se cachea unos milisegundos: al girar la rueda esto se
+    consultaria decenas de veces por segundo y la app en foco no cambia
+    mientras tanto."""
+    ahora = monotonic()
+    if ahora - _app_cache["t"] < APP_CACHE_TTL:
+        return _app_cache["exe"]
+
+    exe = ""
+    try:
+        hwnd = user32.GetForegroundWindow()
+        if hwnd:
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,
+                                     False, pid.value)
+            if h:
+                try:
+                    buf = ctypes.create_unicode_buffer(512)
+                    tam = wintypes.DWORD(len(buf))
+                    if kernel32.QueryFullProcessImageNameW(h, 0, buf,
+                                                           ctypes.byref(tam)):
+                        exe = os.path.basename(buf.value).lower()
+                finally:
+                    kernel32.CloseHandle(h)
+    except Exception:
+        exe = ""
+
+    _app_cache.update(t=ahora, exe=exe)
+    return exe
 
 
 # ============================================================
@@ -274,6 +391,10 @@ class NagaMacros:
 
         # Eventos de "boton soltado" pendientes de suprimir (ver BOTON_UP)
         self._botones_consumidos = set()
+
+        # ¿La app en foco necesita Ctrl+rueda para el zoom? (ZOOM_CON_RUEDA)
+        # Se resuelve al activar el Hypershift 2, no en cada muesca.
+        self.zoom_con_rueda = False
 
         self._lock = threading.RLock()
 
@@ -446,6 +567,12 @@ class NagaMacros:
             return True
         if n == 11:
             self.hyper2 = is_down
+            if is_down:
+                # Se resuelve AQUI, no en cada muesca de rueda: al pulsar el
+                # hypershift hay tiempo de sobra, y el camino de la rueda queda
+                # sin llamadas a la API (menos latencia). La app en foco no
+                # cambia mientras se mantiene el hypershift.
+                self.zoom_con_rueda = app_en_foco() in ZOOM_CON_RUEDA
             return True
 
         # --- botones simples ---
@@ -472,9 +599,19 @@ class NagaMacros:
             if self.hyper1:                   # HS1 -> volumen
                 for _ in range(WHEEL_STEPS):
                     tap(VK["VOLUME_UP"] if up else VK["VOLUME_DOWN"])
-            else:                             # HS2 -> zoom (numpad +/-)
+            elif self.zoom_con_rueda:
+                # HS2 en apps que solo hacen zoom con Ctrl+rueda (ej. OneNote).
+                # UNA sola llamada con el delta completo: el Ctrl viaja en el
+                # mismo lote que la rueda, asi soltar el hypershift despues no
+                # puede convertir el zoom en scroll (ver wheel_ctrl).
+                wheel_ctrl(ZOOM_RUEDA_STEPS if up else -ZOOM_RUEDA_STEPS)
+            else:                             # HS2 -> zoom por teclado
+                if ZOOM_CON_NUMPAD:
+                    mas, menos = VK["ADD"], VK["SUBTRACT"]
+                else:
+                    mas, menos = VK["OEM_PLUS"], VK["OEM_MINUS"]
                 for _ in range(ZOOM_STEPS):
-                    tap(VK["CONTROL"], VK["ADD"] if up else VK["SUBTRACT"])
+                    tap(VK["CONTROL"], mas if up else menos)
             return True                       # suprime el scroll normal
 
         if msg == WM_MBUTTONDOWN:
@@ -517,7 +654,10 @@ class HookLoop:
         return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
     def _ms_cb(self, nCode, wParam, lParam):
-        if nCode == 0:
+        # Ruta rapida: descarta WM_MOUSEMOVE (y demas) sin leer la estructura.
+        # Este callback corre por CADA evento del raton (1000 Hz), asi que todo
+        # lo que se haga aqui se paga en latencia de puntero.
+        if nCode == 0 and wParam in MOUSE_INTERESANTES:
             ms = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
             if ms.dwExtraInfo != INJECTED_TAG:
                 try:
@@ -531,6 +671,14 @@ class HookLoop:
         """Instala los hooks y bombea mensajes. BLOQUEA el hilo llamante:
         los hooks low-level solo funcionan con un message loop vivo."""
         self.thread_id = kernel32.GetCurrentThreadId()
+        # Prioridad alta para el hilo de los hooks: Windows da un plazo limitado
+        # al callback (LowLevelHooksTimeout) y, si se agota, deja de llamarlo.
+        try:
+            THREAD_PRIORITY_HIGHEST = 2
+            kernel32.SetThreadPriority(kernel32.GetCurrentThread(),
+                                       THREAD_PRIORITY_HIGHEST)
+        except Exception:
+            pass
         kb = user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._kb_proc, None, 0)
         ms = user32.SetWindowsHookExW(WH_MOUSE_LL, self._ms_proc, None, 0)
         if not kb or not ms:
@@ -588,6 +736,12 @@ def main():
     except Exception:
         pass
 
+    # El intervalo de conmutacion del GIL es 5 ms por defecto: si otro hilo
+    # (bandeja, scroll lateral) lo tiene tomado, el callback del hook puede
+    # esperar hasta ese tiempo antes de ejecutarse. Bajarlo a 1 ms recorta esa
+    # espera; el coste en CPU es despreciable para lo poco que hace el proceso.
+    sys.setswitchinterval(0.001)
+
     macros = NagaMacros()
     hooks = HookLoop(macros)
 
@@ -606,7 +760,8 @@ def main():
         except KeyboardInterrupt:
             hooks.stop()
 
-    macros.alttab_close()      # no dejar Alt pulsado si se sale a mitad
+    # No dejar modificadores pulsados si se sale a mitad de un gesto
+    macros.alttab_close()
     macros.scroll_stop()
 
 

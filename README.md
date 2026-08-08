@@ -185,6 +185,46 @@ Edita las constantes al principio de `naga_macros_win.py`:
 `ALTTAB_TIMEOUT`, `TILT_DEBOUNCE`, `WHEEL_STEPS`, `ZOOM_STEPS`,
 `TILT_SCROLL_INTERVAL` / `TILT_SCROLL_STEPS` (velocidad del scroll lateral).
 
+### Comportamiento distinto según la aplicación
+
+El zoom (Hypershift 2 + rueda) se manda por defecto como `Ctrl + numpad +/−`,
+que es lo más fiable en navegadores y editores. Pero algunas apps **solo** hacen
+zoom con `Ctrl + rueda` — **OneNote** es el caso típico.
+
+Esas apps se listan en la constante `ZOOM_CON_RUEDA`, por el nombre de su
+ejecutable en minúsculas:
+
+```python
+ZOOM_CON_RUEDA = {
+    "onenote.exe",        # OneNote de Office (escritorio)
+    "onenoteim.exe",      # OneNote para Windows 10/11 (Store)
+}
+```
+
+Para agregar otra app necesitas el nombre de su `.exe`. Ponla en primer plano y
+ejecuta esto (tienes 3 segundos para hacer clic en su ventana):
+
+```bash
+python -c "import naga_macros_win as m, time; time.sleep(3); print(m.app_en_foco())"
+```
+
+Añade lo que imprima al conjunto y reinicia el script.
+
+> Solo el **zoom** cambia según la app; el resto de macros se comporta igual en
+> todas. Esta función es exclusiva de la versión Python de Windows (el `.ahk` y
+> la versión de Linux siempre usan `Ctrl + +/−`).
+
+En estas apps cada muesca se manda como un gesto completo (`Ctrl↓` + rueda +
+`Ctrl↑`) en un único envío, así que **no hace falta seguir manteniendo el
+Hypershift 2** después de girar: el zoom ya está garantizado. Si el paso te
+resulta corto, sube `ZOOM_RUEDA_STEPS`.
+
+En el resto de las apps el zoom va por teclado, con el `+`/`−` de la **fila
+principal** (`Ctrl +` / `Ctrl −`) — igual que hacía la versión AutoHotkey. Es lo
+que esperan los navegadores; en Google Docs dentro de Edge da el zoom del
+documento, no el de toda la página. Si prefieres el numpad, pon
+`ZOOM_CON_NUMPAD = True`.
+
 ---
 
 ## Windows — versión AutoHotkey (original)

@@ -173,8 +173,64 @@ Luego, si procede: `git add . && git commit`.
   *como* las auto-repeticiones; debe ser **mayor que el retardo inicial de
   auto-repetición de Windows** (~0,5 s) o cortaría el scroll a mitad.
   Las auto-repeticiones no reinician el scroll: llaman a `scroll_refresh()`.
-- **Zoom con numpad:** se usa `VK_ADD`/`VK_SUBTRACT` (numpad +/−) en vez de
-  `OEM_PLUS`/`OEM_MINUS`: son independientes del layout, igual que en Linux.
+- **⚠️ Rellenar `wScan` en las teclas inyectadas** (`MapVirtualKeyW(vk, 0)`), no
+  dejarlo en 0. Las apps **Chromium** (Edge, Chrome, Electron) derivan el `code`
+  del evento DOM del **scan code**, no del virtual key: con `wScan=0` identifican
+  mal la tecla. Bug real: en Google Docs dentro de Edge el zoom con `Ctrl +/−`
+  no se comportaba como el del teclado físico.
+- **Zoom por teclado — fila principal, NO numpad (en Windows):** `ZOOM_CON_NUMPAD`
+  (por defecto `False`) usa `VK_OEM_PLUS`/`VK_OEM_MINUS`, que es lo que hacía el
+  `.ahk` con `Send("^-")` y lo que esperan los navegadores. **Ojo con "unificar"
+  esto con Linux:** allá se usa el numpad a propósito (`KEY_KPPLUS`/`KEY_KPMINUS`)
+  porque los OEM pasan por el keymap del compositor y en layouts no-US producen
+  caracteres raros. En Windows ese problema no existe y el numpad, en cambio,
+  algunas apps web lo tratan distinto. Son decisiones opuestas por buenas razones.
+- **Comportamiento por aplicación (solo esta implementación):** `app_en_foco()`
+  devuelve el `.exe` de la ventana activa
+  (`GetForegroundWindow` → `GetWindowThreadProcessId` → `OpenProcess` con
+  `PROCESS_QUERY_LIMITED_INFORMATION` → `QueryFullProcessImageNameW`). Se usa
+  para el zoom: las apps de `ZOOM_CON_RUEDA` (OneNote) reciben `Ctrl+rueda` vía
+  `wheel_ctrl()` en vez de `Ctrl + numpad +/−`, porque no responden al atajo de
+  teclado. **El resultado se cachea `APP_CACHE_TTL` (0,3 s)**: al girar la rueda
+  esto se consultaría decenas de veces por segundo. `wheel_ctrl()` manda
+  `Ctrl↓ + rueda + Ctrl↑` en **un solo `SendInput`** (misma lección que
+  `tap_limpio`: si se separa, el modificador se pierde o lo pisa Synapse).
+  ⚠️ **Rompe a propósito la paridad de las 3 implementaciones**: es una función
+  exclusiva de Windows/Python (el AHK y Linux siempre usan `Ctrl + +/−`). Si se
+  agregan más comportamientos por app, documentarlo en el README.
+- **⚠️ Zoom con Ctrl+rueda → los 3 eventos en UN `SendInput`** (`wheel_ctrl()`).
+  El estado del teclado que ve la app está sincronizado con el **orden de los
+  mensajes**, no con el reloj: al procesar la rueda verá el `Ctrl` pulsado
+  aunque en tiempo real ya se haya soltado. **No separar el `Ctrl↑`.**
+  Se intentó "sostener" el Ctrl entre muescas (soltándolo con un temporizador o
+  al soltar el hypershift) y salió peor: el `Ctrl↑` llegaba **antes** de que
+  OneNote procesara la rueda, así que la leía sin Ctrl y **hacía scroll en vez
+  de zoom** — el síntoma era "al soltar el HS2 la página baja". Además obligaba
+  a mantener el hypershift hasta que la app reaccionara.
+  Corolario: cada muesca es un gesto completo e independiente, y `ZOOM_RUEDA_STEPS`
+  manda el delta en **un** evento de rueda (`notches * 120`) en lugar de varios
+  eventos de una muesca: menos mensajes que procesar.
+
+### Latencia — lo que se midió y lo que sí importa
+
+Ante una queja de "va con retardo", medir antes de tocar. Descartados por
+benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
+`cast` de `MSLLHOOKSTRUCT` = **0,0008 ms**. Lo que sí cuenta:
+
+- **Gestos partidos en trozos** (el caso real del zoom, ver arriba): no es
+  latencia del script sino de cómo la app interpreta la secuencia.
+- **`sys.setswitchinterval(0.001)`** en `main()`: el intervalo del GIL es 5 ms
+  por defecto, así que si otro hilo (bandeja, scroll lateral) lo tiene tomado,
+  el callback del hook espera hasta ese tiempo. Bajarlo a 1 ms recorta esa cola.
+- **Ruta rápida del hook de ratón** (`MOUSE_INTERESANTES`): el ratón emite
+  `WM_MOUSEMOVE` a ~1000 Hz; comprobar el mensaje **antes** de leer la
+  estructura evita ese trabajo en cada movimiento del puntero.
+- **Sacar las llamadas a la API del camino crítico**: `app_en_foco()` se
+  resuelve al **activar el Hypershift 2**, no en cada muesca (la app en foco no
+  cambia mientras se mantiene pulsado).
+- **`SetThreadPriority(THREAD_PRIORITY_HIGHEST)`** en el hilo de los hooks:
+  Windows da un plazo limitado al callback (`LowLevelHooksTimeout`) y, si se
+  agota repetidamente, **deja de llamarlo** (las macros dejarían de responder).
 - **Lanzador sin consola:** `NagaV2_Macros_Win.vbs` ejecuta `pythonw.exe`. Para
   el autoarranque va un acceso directo del `.vbs` en `shell:startup`.
 
