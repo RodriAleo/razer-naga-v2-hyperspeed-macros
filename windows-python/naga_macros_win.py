@@ -54,7 +54,7 @@ import ctypes
 import threading
 import subprocess
 from ctypes import wintypes
-from time import monotonic
+from time import monotonic, sleep
 
 try:
     import pystray
@@ -65,9 +65,27 @@ except ImportError:
 
 # ---------------- CONFIGURACION ----------------
 
+# Carpeta base: junto al script, o junto al .exe si esta compilado.
+# ⚠️ Con PyInstaller, __file__ apunta a la carpeta temporal de extraccion, no a
+# donde vive el ejecutable; hay que usar sys.executable.
+CONGELADO = getattr(sys, "frozen", False)
+BASE_DIR = (os.path.dirname(sys.executable) if CONGELADO
+            else os.path.dirname(os.path.abspath(__file__)))
+
+
+def _recurso(nombre):
+    """Busca un archivo junto al script/exe y, si no esta, dentro del propio
+    ejecutable (PyInstaller lo extrae en sys._MEIPASS). Asi el .exe funciona
+    tanto suelto como acompañado de la imagen."""
+    externo = os.path.join(BASE_DIR, nombre)
+    if os.path.exists(externo):
+        return externo
+    empaquetado = os.path.join(getattr(sys, "_MEIPASS", BASE_DIR), nombre)
+    return empaquetado if os.path.exists(empaquetado) else externo
+
+
 # Ruta de la imagen-guia de atajos (junto al script, igual que en AHK):
-IMAGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "NagaV2_atajos.png")
+IMAGE_PATH = _recurso("NagaV2_atajos.png")
 
 # Tiempo (segundos) que el selector Alt+Tab sigue abierto sin pulsar:
 ALTTAB_TIMEOUT = 0.8
@@ -161,7 +179,6 @@ VK = {
     "LWIN": 0x5B, "C": 0x43, "V": 0x56, "Q": 0x51,
     "VOLUME_UP": 0xAF, "VOLUME_DOWN": 0xAE,
     "MEDIA_PLAY_PAUSE": 0xB3, "MEDIA_NEXT": 0xB0, "MEDIA_PREV": 0xB1,
-    "OEM_PLUS": 0xBB, "OEM_MINUS": 0xBD,
     "ADD": 0x6B, "SUBTRACT": 0x6D,   # numpad +/-: independientes del layout
 }
 
@@ -854,6 +871,46 @@ def _tray_image(color):
     return img
 
 
+# ============================================================
+#  Instancia unica
+# ============================================================
+# Dos instancias a la vez instalan dos juegos de hooks y cada tecla se procesa
+# dos veces (o gana la vieja y tapa los cambios). Pasa facil: el .py arranca
+# solo al iniciar sesion y luego se abre el .exe desde el menu de Inicio. Un
+# mutex con nombre lo impide, y como el nombre es el MISMO en las dos formas de
+# ejecucion, tampoco pueden convivir el script y el ejecutable.
+NOMBRE_MUTEX = r"Local\NagaV2MacrosHyperspeed"
+ERROR_ALREADY_EXISTS = 183
+_mutex = None
+
+
+def tomar_instancia(espera=3.0):
+    """Reserva la instancia unica. Reintenta un poco: al usar "Reiniciar" la
+    instancia nueva puede arrancar antes de que la vieja termine de salir."""
+    global _mutex
+    limite = monotonic() + espera
+    while True:
+        h = kernel32.CreateMutexW(None, True, NOMBRE_MUTEX)
+        if h and ctypes.get_last_error() != ERROR_ALREADY_EXISTS:
+            _mutex = h
+            return True
+        if h:
+            kernel32.CloseHandle(h)
+        if monotonic() >= limite:
+            return False
+        sleep(0.25)
+
+
+def soltar_instancia():
+    """Libera el mutex. Hay que llamarlo ANTES de lanzar el relevo en
+    Reiniciar; si no, el relevo se encontraria la instancia todavia ocupada."""
+    global _mutex
+    if _mutex:
+        kernel32.ReleaseMutex(_mutex)
+        kernel32.CloseHandle(_mutex)
+        _mutex = None
+
+
 def relanzar():
     """Arranca una instancia nueva del script y devuelve True si lo consiguio.
 
@@ -861,14 +918,19 @@ def relanzar():
     coexisten, ambas los instalan y gana la que Windows tenga primero en la
     cadena (con la vieja ganando, los cambios recien hechos no se ven).
     Se usa pythonw.exe si existe, para que no aparezca una consola."""
-    exe = sys.executable
-    sin_consola = os.path.join(os.path.dirname(exe), "pythonw.exe")
-    if os.path.exists(sin_consola):
-        exe = sin_consola
+    if CONGELADO:
+        # Compilado: el propio .exe es el programa, sin argumentos.
+        cmd = [sys.executable]
+    else:
+        exe = sys.executable
+        sin_consola = os.path.join(os.path.dirname(exe), "pythonw.exe")
+        if os.path.exists(sin_consola):
+            exe = sin_consola
+        cmd = [exe, os.path.abspath(__file__)]
+    soltar_instancia()       # el relevo necesita el hueco libre
     try:
         DETACHED_PROCESS = 0x00000008
-        subprocess.Popen([exe, os.path.abspath(__file__)],
-                         close_fds=True, creationflags=DETACHED_PROCESS)
+        subprocess.Popen(cmd, close_fds=True, creationflags=DETACHED_PROCESS)
         return True
     except Exception as ex:
         print(f"No pude relanzar el script: {ex}")
@@ -915,6 +977,23 @@ def main():
     if sys.platform != "win32":
         sys.exit("Este script es la version de Windows. En Linux usa naga_macros.py")
 
+    # Una sola instancia: con dos, cada tecla se procesaria dos veces.
+    if not tomar_instancia():
+        print("Ya hay una instancia de las macros en ejecucion.")
+        # Con --noconsole no hay donde imprimir: avisar con un cuadro de dialogo
+        # (MB_ICONINFORMATION), si no el doble clic pareceria no hacer nada.
+        try:
+            user32.MessageBoxW(
+                None,
+                "Las macros del Naga V2 ya estan en ejecucion." 
+                "\n\n"
+                "Busca el icono verde en la bandeja del sistema "
+                "(junto al reloj).",
+                "Naga V2 Macros", 0x40)
+        except Exception:
+            pass
+        return
+
     # Prioridad alta: reduce la latencia de respuesta de las macros.
     try:
         kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x00000080)
@@ -959,6 +1038,7 @@ def main():
     # No dejar modificadores pulsados si se sale a mitad de un gesto
     macros.alttab_close()
     macros.scroll_stop()
+    soltar_instancia()
 
 
 if __name__ == "__main__":

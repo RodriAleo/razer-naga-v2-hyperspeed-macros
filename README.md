@@ -193,6 +193,39 @@ permisos de administrador ni toca el registro.
 También puedes hacerlo a mano: `Win + R` → `shell:startup` → y copiar ahí un
 acceso directo de `NagaV2_Macros_Win.vbs`.
 
+### Ejecutable (.exe) y menú de Inicio
+
+Si prefieres un ejecutable en vez de lanzar el script, se compila con:
+
+```bash
+powershell -ExecutionPolicy Bypass -File windows-python/compilar_exe.ps1
+```
+
+Genera `NagaV2_Macros_Win.exe` (un solo archivo, sin consola, con la guía de
+atajos incrustada). **No se versiona** — está en `.gitignore` porque es un
+artefacto; recompílalo tras editar el `.py`.
+
+Para que aparezca en el menú de Inicio, copia un acceso directo del `.exe` a:
+
+```
+%APPDATA%\Microsoft\Windows\Start Menu\Programs
+```
+
+Después, para fijarlo entre los iconos anclados: clic derecho sobre él en el
+menú de Inicio → **Anclar a Inicio**. Ese último paso hay que hacerlo a mano:
+Windows no permite anclar por software desde Windows 10 1607.
+
+> En modo *onefile* el primer arranque tarda unos segundos: el `.exe` se
+> descomprime en una carpeta temporal. El script `.py` arranca al instante, por
+> eso el autoarranque sigue usándolo.
+
+### Una sola instancia a la vez
+
+El programa toma un *mutex* con nombre al arrancar: si ya hay una instancia
+(da igual si es el `.py` o el `.exe`), la segunda avisa con un cuadro de
+diálogo y se cierra. Sin esto, dos instancias instalan dos juegos de hooks y
+cada pulsación se procesa dos veces.
+
 ### Ajustes
 Edita las constantes al principio de `naga_macros_win.py`:
 `ALTTAB_TIMEOUT`, `TILT_DEBOUNCE`, `WHEEL_STEPS`, `ZOOM_STEPS`,

@@ -1,5 +1,10 @@
-# Ejecutable compilado del AHK (artefacto de build)
-NagaV2_Macros.exe
+# Ejecutables compilados (artefactos de build, se regeneran)
+*.exe
+
+# Artefactos de PyInstaller
+build/
+dist/
+*.spec
 
 # Cache de Python
 __pycache__/

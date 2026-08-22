@@ -231,6 +231,24 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
 - **`SetThreadPriority(THREAD_PRIORITY_HIGHEST)`** en el hilo de los hooks:
   Windows da un plazo limitado al callback (`LowLevelHooksTimeout`) y, si se
   agota repetidamente, **deja de llamarlo** (las macros dejarían de responder).
+- **⚠️ Instancia única (mutex `Local\NagaV2MacrosHyperspeed`):** el mismo
+  nombre para el `.py` y el `.exe`, así **no pueden convivir**. Dos instancias
+  instalan dos juegos de hooks: cada tecla se procesa dos veces o gana la vieja
+  y tapa los cambios (pasó de verdad). `tomar_instancia()` **reintenta ~3 s**
+  porque el "Reiniciar" de la bandeja arranca el relevo antes de que la vieja
+  termine de salir; `relanzar()` llama a `soltar_instancia()` antes del `Popen`.
+- **Compilación a `.exe` (`compilar_exe.ps1`, PyInstaller onefile):** el `.exe`
+  **no se versiona** (`.gitignore`), es un artefacto. Lo que cambia al estar
+  "congelado" y hay que respetar:
+  - `__file__` apunta a la carpeta temporal de extracción, **no** a donde vive
+    el `.exe`. Por eso `BASE_DIR` usa `sys.executable` si `sys.frozen`, y
+    `_recurso()` busca primero junto al `.exe` y luego en `sys._MEIPASS`.
+  - `relanzar()` debe ejecutar `sys.executable` **sin argumentos** (el `.exe` ya
+    es el programa); pasarle el `.py` no funcionaría.
+  - Al probar el `.exe`, **esperar ~10 s**: en onefile el primer arranque
+    descomprime a disco. Probarlo antes hace creer que no funciona (pasó).
+  - Con `--noconsole` no hay stdout: los `print()` de diagnóstico no se ven. Para
+    depurar, compilar sin `--noconsole`.
 - **Lanzador sin consola:** `NagaV2_Macros_Win.vbs` ejecuta `pythonw.exe`. Para
   el autoarranque va un acceso directo del `.vbs` en `shell:startup`.
 - **Overlay de la guía (Botón 5 mantenido) — `GuiaOverlay`:** Tk **no es
