@@ -3,6 +3,16 @@
 SendMode("Input")
 SetWorkingDir(A_ScriptDir)
 
+; Version de las macros. Se muestra en el icono de la bandeja. Mantenerla
+; IGUAL en los tres scripts (ver CLAUDE.md, seccion "Versionado").
+;@Ahk2Exe-SetVersion 1.0.0
+global NAGA_VERSION := "1.0.0"
+A_IconTip := "Naga V2 Macros v" NAGA_VERSION
+; Primera linea del menu de la bandeja: solo informativa (deshabilitada).
+A_TrayMenu.Insert("1&", "Naga V2 Macros v" NAGA_VERSION, (*) => 0)
+A_TrayMenu.Disable("1&")
+A_TrayMenu.Insert("2&")    ; separador
+
 ; ============================================================
 ;  MACROS para Razer Naga V2 Hyperspeed
 ;  Los 12 botones laterales estan configurados (en Razer Synapse)
@@ -72,12 +82,12 @@ F14::NagaAltTab("atras")     ; primera pulsacion (Alt+Shift+Tab)
 F15::NagaAltTab("adelante")  ; primera pulsacion (Alt+Tab)
 !F15::NagaAltTab("adelante") ; con el selector ya abierto (Alt sostenido)
 
-; --- Boton 4 (tecla F16) = LIBRE -------------------------
-; Sin asignar. Para usarlo, quita los ; y pon tu accion dentro:
-; F16::
-; {
-;     Send("tu macro aqui")
-; }
+; --- Boton 4 (tecla F16) ---------------------------------
+F16::
+{
+    ; Ctrl+Tab (siguiente pestaña)
+    Send("^{Tab}")
+}
 
 ; --- Boton 5 (tecla F17) ---------------------------------
 F17::

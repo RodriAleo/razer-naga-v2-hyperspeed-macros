@@ -45,7 +45,7 @@ Botón → tecla: **Botón N = F(12+N)** → Botón 1=F13 … Botón 12=F24.
 | 1 | F13 | Alt+Tab rápido (un toque) |
 | 2 | F14 | Selector Alt+Tab persistente — anterior |
 | 3 | F15 | Selector Alt+Tab persistente — siguiente |
-| 4 | F16 | **LIBRE** |
+| 4 | F16 | Siguiente pestaña (Ctrl+Tab) |
 | 5 | F17 | Abrir la guía de atajos (`NagaV2_atajos.png`) |
 | 6 | F18 | **LIBRE** |
 | 7 | F19 | Pantalla completa (F11) |
@@ -94,6 +94,27 @@ Luego, si procede: `git add . && git commit`.
 > Mantener los 4 en coherencia es lo importante. Un cambio que solo toca uno de
 > ellos deja el proyecto inconsistente (p. ej. Windows y Linux divergen, o la
 > guía de atajos miente).
+
+---
+
+## Versionado
+
+Las tres implementaciones llevan **el mismo número de versión** (SemVer,
+`MAYOR.MENOR.PARCHE`), visible en el icono de la bandeja: en el tooltip y como
+primera línea (deshabilitada) del menú. Al publicar un cambio, subirlo en los
+**tres** sitios a la vez:
+
+| Archivo | Dónde |
+|---------|-------|
+| `windows-python/naga_macros_win.py` | `VERSION = "x.y.z"` (sección CONFIGURACION) |
+| `windows-ahk/NagaV2_Macros.ahk` | `NAGA_VERSION := "x.y.z"` y la directiva `;@Ahk2Exe-SetVersion` |
+| `linux/naga_macros.py` | `VERSION = "x.y.z"` (sección CONFIGURACION) |
+
+Criterio: **PARCHE** = arreglo sin cambiar atajos; **MENOR** = macro nueva o
+cambiada; **MAYOR** = cambio que obliga a reconfigurar algo (Synapse, rutas,
+autoarranque). Tras el commit, etiquetar: `git tag vX.Y.Z`. El `.exe` de
+Windows hay que **recompilarlo** (`compilar_exe.ps1`) para que muestre la
+versión nueva.
 
 ---
 

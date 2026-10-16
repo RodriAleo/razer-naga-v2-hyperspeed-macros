@@ -23,7 +23,7 @@
 #    Boton 1  (F13) Alt+Tab rapido
 #    Boton 2  (F14) Selector Alt+Tab  <- anterior
 #    Boton 3  (F15) Selector Alt+Tab  -> siguiente
-#    Boton 4  (F16) LIBRE
+#    Boton 4  (F16) Ctrl+Tab (siguiente pestaña)
 #    Boton 5  (F17) Abrir la guia de atajos
 #    Boton 6  (F18) LIBRE
 #    Boton 7  (F19) Pantalla completa (F11)
@@ -60,6 +60,10 @@ except ImportError:
     _HAS_TRAY = False
 
 from evdev import InputDevice, UInput, ecodes as e, list_devices
+
+# Version de las macros. Se muestra en el icono de la bandeja. Mantenerla
+# IGUAL en los tres scripts (ver CLAUDE.md, seccion "Versionado").
+VERSION = "1.0.0"
 
 # ---------------- CONFIGURACION ----------------
 
@@ -293,6 +297,8 @@ class NagaMacros:
             self.alttab(forward=False)
         elif n == 3:                     # selector ->
             self.alttab(forward=True)
+        elif n == 4:                     # siguiente pestaña
+            self.tap(e.KEY_LEFTCTRL, e.KEY_TAB)
         elif n == 5:                     # abrir guia de atajos
             subprocess.Popen(["xdg-open", IMAGE_PATH],
                              close_fds=True, start_new_session=True)
@@ -300,7 +306,7 @@ class NagaMacros:
             self.tap(e.KEY_F11)
         elif n == 12:                    # overview (tecla Super)
             self.tap(e.KEY_LEFTMETA)
-        # 4, 6, 8, 9 -> LIBRES (sin accion)
+        # 6, 8, 9 -> LIBRES (sin accion)
 
     # ---------- bucle principal ----------
     def run(self):
@@ -489,8 +495,9 @@ def main():
     def _set_active(active):
         if _HAS_TRAY and _icon[0] is not None:
             _icon[0].icon  = _ICON_ACTIVE if active else _ICON_WAITING
-            _icon[0].title = ("Naga Macros - activo"
-                              if active else "Naga Macros - esperando raton")
+            _icon[0].title = (f"Naga Macros v{VERSION} - activo"
+                              if active else
+                              f"Naga Macros v{VERSION} - esperando raton")
 
     def _worker():
         while _alive[0]:
@@ -552,8 +559,13 @@ def main():
         icon = pystray.Icon(
             "naga-macros",
             _ICON_WAITING,
-            "Naga Macros - esperando raton",
+            f"Naga Macros v{VERSION} - esperando raton",
             menu=pystray.Menu(
+                # Solo informativo (deshabilitado): la version a la vista al
+                # hacer clic en el icono.
+                pystray.MenuItem(f"Naga V2 Macros v{VERSION}",
+                                 lambda *_: None, enabled=False),
+                pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Reiniciar", _on_restart),
                 pystray.MenuItem("Salir",     _on_quit),
             ),

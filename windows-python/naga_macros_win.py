@@ -25,7 +25,7 @@
 #    Boton 1  (F13) Alt+Tab rapido
 #    Boton 2  (F14) Selector Alt+Tab  <- anterior
 #    Boton 3  (F15) Selector Alt+Tab  -> siguiente
-#    Boton 4  (F16) LIBRE
+#    Boton 4  (F16) Ctrl+Tab (siguiente pestaña)
 #    Boton 5  (F17) Abrir la guia de atajos
 #    Boton 6  (F18) LIBRE
 #    Boton 7  (F19) Pantalla completa (F11)
@@ -62,6 +62,10 @@ try:
     _HAS_TRAY = True
 except ImportError:
     _HAS_TRAY = False
+
+# Version de las macros. Se muestra en el icono de la bandeja. Mantenerla
+# IGUAL en los tres scripts (ver CLAUDE.md, seccion "Versionado").
+VERSION = "1.0.0"
 
 # ---------------- CONFIGURACION ----------------
 
@@ -584,13 +588,15 @@ class NagaMacros:
             self.alttab(forward=False)
         elif n == 3:                          # selector ->
             self.alttab(forward=True)
+        elif n == 4:                          # siguiente pestaña
+            tap(VK["CONTROL"], VK["TAB"])
         elif n == 5:                          # guia de atajos (ver guia_*)
             self.guia_mostrar()
         elif n == 7:                          # pantalla completa
             tap(VK["F11"])
         elif n == 12:                         # vista de tareas (Win+Tab)
             tap(VK["LWIN"], VK["TAB"])
-        # 4, 6, 8, 9 -> LIBRES (sin accion)
+        # 6, 8, 9 -> LIBRES (sin accion)
 
     # ---------- guia de atajos (Boton 5) ----------
     def guia_mostrar(self):
@@ -964,8 +970,14 @@ def run_tray(hooks, macros):
         hooks.stop()
 
     icon = pystray.Icon(
-        "naga_macros", _tray_image((68, 214, 44, 255)), "Naga V2 — Macros",
+        "naga_macros", _tray_image((68, 214, 44, 255)),
+        f"Naga V2 — Macros v{VERSION}",
         menu=pystray.Menu(
+            # Solo informativo (deshabilitado): la version a la vista al
+            # hacer clic derecho en el icono.
+            pystray.MenuItem(f"Naga V2 Macros v{VERSION}",
+                             lambda *_: None, enabled=False),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Abrir guia de atajos", on_guia, default=True),
             pystray.MenuItem("Reiniciar", on_restart),
             pystray.MenuItem("Salir", on_quit),
@@ -989,7 +1001,7 @@ def main():
                 "\n\n"
                 "Busca el icono verde en la bandeja del sistema "
                 "(junto al reloj).",
-                "Naga V2 Macros", 0x40)
+                f"Naga V2 Macros v{VERSION}", 0x40)
         except Exception:
             pass
         return

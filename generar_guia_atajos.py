@@ -33,7 +33,7 @@ CELDAS = [
     (1,  "Alt+Tab rapido",             0),
     (2,  "Alt+Tab: ventana anterior",  0),
     (3,  "Alt+Tab: ventana siguiente", 0),
-    (4,  "(libre)",                    2),
+    (4,  "Ctrl+Tab: pestaña siguiente", 0),
     (5,  "Abrir esta ayuda",           0),
     (6,  "(libre)",                    2),
     (7,  "Pantalla completa (F11)",    0),

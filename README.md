@@ -74,7 +74,7 @@ Correspondencia botón → tecla:
 | **1** | Alt+Tab rápido (un toque) |
 | **2** | Selector Alt+Tab persistente — ventana **anterior** |
 | **3** | Selector Alt+Tab persistente — ventana **siguiente** |
-| **4** | *(libre)* |
+| **4** | Siguiente pestaña (`Ctrl+Tab`) |
 | **5** | Abrir esta guía de atajos (imagen) |
 | **6** | *(libre)* |
 | **7** | Pantalla completa (`F11`) |
@@ -385,6 +385,16 @@ Detalles de la unidad que conviene no cambiar a la ligera:
 > los dos pasos de *Ejecutar sin `sudo`* de arriba. Sin root no puede fijar la
 > prioridad en tiempo real (`SCHED_FIFO`) y avisa por el log; es inofensivo,
 > solo se pierde una pequeña optimización de latencia.
+
+---
+
+## Versión
+
+Cada script muestra su versión en el icono de la bandeja del sistema: al pasar
+el ratón por encima (tooltip) y en la primera línea del menú que se abre al
+hacer clic. Las tres implementaciones (Windows Python, Windows AHK y Linux)
+comparten el mismo número; cada versión publicada lleva su etiqueta `vX.Y.Z`
+en git.
 
 ---
 
