@@ -10,6 +10,16 @@ regenera la guía (`python generar_guia_atajos.py`), haz commit y etiqueta
 macro nueva o cambiada; MAYOR = cambio que obliga a reconfigurar algo
 (Synapse, rutas, autoarranque).
 
+## [2.1.0] - 2026-10-16
+
+### Añadido
+- Linux: la guía de atajos se muestra como overlay **mientras se mantiene** el
+  Botón 5, igual que en Windows (sin robar el foco y centrada en el monitor del
+  puntero).
+
+### Cambiado
+- La guía indica que el Botón 5 se mantiene pulsado para verla.
+
 ## [2.0.0] - 2026-10-16
 
 ### Cambiado

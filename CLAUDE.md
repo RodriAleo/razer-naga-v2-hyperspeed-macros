@@ -39,7 +39,7 @@ Botón → tecla: **Botón N = F(12+N)** → Botón 1=F13 … Botón 12=F24.
 | 2 | F14 | Selector Alt+Tab persistente — anterior |
 | 3 | F15 | Selector Alt+Tab persistente — siguiente |
 | 4 | F16 | Siguiente pestaña (Ctrl+Tab) |
-| 5 | F17 | Abrir la guía de atajos (`NagaV2_atajos.png`) |
+| 5 | F17 | Guía de atajos (`NagaV2_atajos.png`) como overlay **mientras se mantiene** |
 | 6 | F18 | **LIBRE** |
 | 7 | F19 | Pantalla completa (F11) |
 | 8 | F20 | **LIBRE** |
@@ -356,6 +356,24 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   - Linux: `IMAGE_PATH` se calcula con `os.path.dirname(os.path.abspath(__file__))`
     para ser siempre relativa al directorio del script, sin importar desde dónde
     se arranque.
+- **Overlay de la guía en Linux (Botón 5 mantenido) — `GuiaOverlay`:** misma
+  idea que en Windows (hilo propio de Tk que sondea un `Event` cada 30 ms;
+  **nunca llamar a Tk desde `process()`**). Diferencias:
+  - Se crea **una sola vez en `main()`** y se pasa a cada `NagaMacros(guia=...)`:
+    las `NagaMacros` se recrean al reiniciar/reconectar, el hilo de Tk no.
+    `cleanup()` la oculta por si el ratón se desconecta con el botón pulsado.
+  - El Botón 5 se trata en `process()` (pulsar → mostrar, soltar → ocultar,
+    `value == 2` = auto-repetición, se ignora), **no** en `boton_simple()`.
+  - Ventana **override-redirect**: el WM no la decora, no le da foco y no sale en
+    Alt+Tab (equivale al `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW` de Windows).
+  - **Multimonitor:** Tk ve en X11 una sola pantalla virtual (todos los
+    monitores juntos); centrar ahí deja la guía partida entre dos. Se lee
+    `xrandr --listmonitors` (`_monitores()`) y se centra en el monitor del
+    puntero, escalando a ≤90 % de su alto (una `PhotoImage` cacheada por alto).
+  - La caché se **precarga** al arrancar: escalar en la primera pulsación metía
+    ~250 ms de retardo.
+  - Requiere `DISPLAY` (la unidad systemd lo hereda de la sesión gráfica). Sin
+    tkinter/`DISPLAY`, `guia_mostrar()` cae a `xdg-open`.
 - **Grab de dispositivos en Linux (crítico):**
   El Naga V2 HS aparece como **5 interfaces** separadas en `/dev/input/`:
   `Mouse`, `Keyboard`, `Naga V2 HS`, `System Control`, `Consumer Control`.

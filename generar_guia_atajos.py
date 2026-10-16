@@ -35,7 +35,7 @@ CELDAS = [
     (2,  "Alt+Tab: ventana anterior",  0),
     (3,  "Alt+Tab: ventana siguiente", 0),
     (4,  "Ctrl+Tab: pestaña siguiente", 0),
-    (5,  "Abrir esta ayuda",           0),
+    (5,  "Mantener: ver esta ayuda",   0),
     (6,  "(libre)",                    2),
     (7,  "Pantalla completa (F11)",    0),
     (8,  "(libre)",                    2),
@@ -63,8 +63,6 @@ SECCIONES = [
     ]),
 ]
 
-PIE = "Pulsa el Boton 5 para volver a abrir esta ayuda."
-
 
 def _leer_version():
     """Primera entrada '## [X.Y.Z]' del CHANGELOG.md (fuente unica)."""
@@ -82,7 +80,7 @@ DESTINOS = ["windows", "linux"]
 NOMBRE_IMAGEN = "NagaV2_atajos.png"
 
 # ---------------- ESTILO ----------------
-W, H = 920, 900
+W, H = 920, 860
 BG          = (28, 28, 30)
 PANEL       = (44, 44, 48)
 PANEL_VACIO = (34, 34, 37)
@@ -145,7 +143,6 @@ def generar():
     f_num    = _fuente(12, negrita=True)
     f_celda  = _fuente(12)
     f_fila   = _fuente(14)
-    f_chica  = _fuente(11)
 
     # --- cabecera ---
     d.rectangle([0, 0, W, 62], fill=VERDE)
@@ -184,7 +181,6 @@ def generar():
             y += 28
         y += 8
 
-    d.text((24, H - 30), PIE, font=f_chica, fill=GRIS, anchor="lt")
     # Version en la cabecera: si la guia esta desactualizada respecto a los
     # scripts (no se regenero al subir la version), se nota a simple vista.
     d.text((W - 24, 31), "v" + _leer_version(), font=f_cabeza, fill=NEGRO,

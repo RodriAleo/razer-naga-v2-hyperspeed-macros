@@ -65,7 +65,7 @@ Correspondencia botón → tecla:
 | **2** | Selector Alt+Tab persistente — ventana **anterior** |
 | **3** | Selector Alt+Tab persistente — ventana **siguiente** |
 | **4** | Siguiente pestaña (`Ctrl+Tab`) |
-| **5** | Abrir esta guía de atajos (imagen) |
+| **5** | Guía de atajos — visible **mientras se mantiene** pulsado (overlay) |
 | **6** | *(libre)* |
 | **7** | Pantalla completa (`F11`) |
 | **8** | *(libre)* |
@@ -301,6 +301,17 @@ instalados, aparece un ícono circular en la bandeja:
 - **Naranja** → esperando que el ratón se conecte.
 
 Clic derecho sobre el ícono para acceder al menú **Reiniciar** / **Salir**.
+
+### La guía de atajos como overlay (Botón 5)
+
+Igual que en Windows: al **mantener pulsado el Botón 5** la guía aparece
+flotando y desaparece al soltarlo. No roba el foco ni sale en el Alt+Tab. Con
+varios monitores se centra en el que tiene el puntero.
+
+Usa `tkinter` (y `Pillow`, si está, para escalar la imagen en pantallas
+pequeñas) y `xrandr` para conocer los monitores. Si tu Python no trae tkinter:
+`sudo apt install python3-tk`. Sin tkinter, o sin sesión gráfica, el Botón 5
+abre la imagen con el visor del sistema. Probado en GNOME sobre X11.
 
 ### Ejecutar sin `sudo`
 1. Añade tu usuario al grupo `input` y reinicia sesión:

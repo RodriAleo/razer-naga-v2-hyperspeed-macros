@@ -24,7 +24,7 @@
 #    Boton 2  (F14) Selector Alt+Tab  <- anterior
 #    Boton 3  (F15) Selector Alt+Tab  -> siguiente
 #    Boton 4  (F16) Ctrl+Tab (siguiente pestaña)
-#    Boton 5  (F17) Abrir la guia de atajos
+#    Boton 5  (F17) Guia de atajos (visible mientras se mantiene)
 #    Boton 6  (F18) LIBRE
 #    Boton 7  (F19) Pantalla completa (F11)
 #    Boton 8  (F20) LIBRE
@@ -139,9 +139,164 @@ if _HAS_TRAY:
     _ICON_WAITING = _make_tray_icon((220, 130, 0, 255))   # naranja: esperando
 
 
+# ============================================================
+#  Overlay de la guia de atajos (Boton 5 mantenido)
+# ============================================================
+def _monitores():
+    """Lista de (x, y, ancho, alto) de cada monitor segun `xrandr`. Vacia si
+    no se puede averiguar (sin xrandr, Wayland puro...): entonces se usa la
+    pantalla completa."""
+    try:
+        out = subprocess.run(["xrandr", "--listmonitors"], capture_output=True,
+                             text=True, timeout=2).stdout
+    except Exception:
+        return []
+    # " 0: +*HDMI-1 1920/528x1080/297+0+0  HDMI-1"
+    return [tuple(int(v) for v in (m[2], m[3], m[0], m[1]))
+            for m in re.findall(r"(\d+)/\d+x(\d+)/\d+\+(-?\d+)\+(-?\d+)", out)]
+
+
+class GuiaOverlay:
+    """Muestra NagaV2_atajos.png como ventana flotante mientras se mantiene el
+    Boton 5 y la oculta al soltarlo (igual que en Windows).
+
+    Tk NO es thread-safe y quiere su propio mainloop, asi que vive en un hilo
+    dedicado; process() solo levanta/baja un Event y el hilo de Tk lo sondea.
+    Nada de llamar a Tk desde el bucle de eventos.
+
+    La ventana es override-redirect: el gestor de ventanas no la decora, no le
+    da el foco y no sale en Alt+Tab (importa: el Boton 1 es Alt+Tab). Se centra
+    en el monitor donde esta el puntero; con varios monitores, centrarla en
+    "la pantalla" de Tk la dejaria partida entre dos.
+
+    Es una sola instancia para todo el proceso (se crea en main()): las
+    NagaMacros se recrean al reconectar el raton, el hilo de Tk no.
+    """
+
+    def __init__(self, ruta):
+        self.ruta = ruta
+        self.error = None
+        self._pedir = threading.Event()     # True = deberia estar visible
+        self._listo = threading.Event()     # el hilo de Tk ya arranco
+        self.visible = False                # estado real (lo fija el hilo Tk)
+        self._t = threading.Thread(target=self._loop, daemon=True,
+                                   name="naga-guia")
+        self._t.start()
+        self._listo.wait(timeout=5)
+        if not self._listo.is_set():
+            self.error = "Tk no arranco a tiempo"
+
+    # --- API para process() (no toca Tk) ---
+    def mostrar(self):
+        self._pedir.set()
+
+    def ocultar(self):
+        self._pedir.clear()
+
+    @property
+    def disponible(self):
+        return self.error is None
+
+    # --- hilo propio de Tk ---
+    def _loop(self):
+        try:
+            import tkinter as tk
+            if not os.environ.get("DISPLAY"):
+                raise RuntimeError("no hay DISPLAY (sesion grafica X11)")
+            root = tk.Tk()
+            root.withdraw()
+            root.overrideredirect(True)          # sin decoracion ni foco
+            root.attributes("-topmost", True)
+            root.title("Naga V2 - Guia de atajos")
+            root.configure(bg="black")
+            lbl = tk.Label(root, bd=0, highlightthickness=0, bg="black")
+            lbl.pack()
+            try:
+                root.attributes("-alpha", 0.96)  # requiere compositor
+            except tk.TclError:
+                pass
+            original = self._abrir(tk)
+        except Exception as ex:
+            self.error = str(ex)
+            self._listo.set()
+            return
+
+        cache = {}           # alto maximo -> PhotoImage (una por tamano de monitor)
+        monitores = _monitores()
+        # Precarga: escalar la imagen al primer uso costaba ~250 ms de retardo
+        # al pulsar el Boton 5. Se prepara ya una por cada alto de monitor.
+        try:
+            for alto_mon in {m[3] for m in monitores}:
+                cache.setdefault(int(alto_mon * 0.9),
+                                 self._escalar(tk, original, int(alto_mon * 0.9)))
+        except Exception:
+            pass
+        self._listo.set()
+
+        def colocar():
+            nonlocal monitores
+            px, py = root.winfo_pointerxy()
+            dentro = [m for m in monitores
+                      if m[0] <= px < m[0] + m[2] and m[1] <= py < m[1] + m[3]]
+            if not dentro:                       # cambio de monitores: releer
+                monitores = _monitores()
+                dentro = [m for m in monitores
+                          if m[0] <= px < m[0] + m[2] and m[1] <= py < m[1] + m[3]]
+            mx, my, mw, mh = dentro[0] if dentro else (
+                0, 0, root.winfo_screenwidth(), root.winfo_screenheight())
+            maximo = int(mh * 0.9)
+            if maximo not in cache:
+                cache[maximo] = self._escalar(tk, original, maximo)
+            img = cache[maximo]
+            lbl.configure(image=img)
+            ancho, alto = img.width(), img.height()
+            root.geometry(f"{ancho}x{alto}+{mx + (mw - ancho) // 2}"
+                          f"+{my + (mh - alto) // 2}")
+
+        def tick():
+            quiere = self._pedir.is_set()
+            if quiere and not self.visible:
+                try:
+                    colocar()
+                except Exception as ex:
+                    print(f"Guia: no pude colocar el overlay: {ex}")
+                root.deiconify()
+                root.lift()
+                self.visible = True
+            elif not quiere and self.visible:
+                root.withdraw()
+                self.visible = False
+            root.after(30, tick)
+
+        root.after(30, tick)
+        root.mainloop()
+
+    def _abrir(self, tk):
+        """Imagen original: con Pillow si esta (escala con calidad); si no, el
+        PhotoImage de Tk (lee PNG en Tk 8.6+)."""
+        if _HAS_TRAY:                            # Pillow ya importado
+            return Image.open(self.ruta).convert("RGB")
+        return tk.PhotoImage(file=self.ruta)
+
+    @staticmethod
+    def _escalar(tk, original, maximo):
+        if _HAS_TRAY:
+            from PIL import ImageTk
+            im = original
+            if im.height > maximo:
+                im = im.resize((int(im.width * maximo / im.height), maximo),
+                               Image.LANCZOS)
+            return ImageTk.PhotoImage(im)
+        if original.height() <= maximo:
+            return original
+        factor = -(-original.height() // maximo)   # sin Pillow: solo enteros
+        return original.subsample(factor, factor)
+
+
 class NagaMacros:
-    def __init__(self, stop_event=None):
+    def __init__(self, stop_event=None, guia=None):
         self._stop = stop_event if stop_event is not None else threading.Event()
+        self.guia = guia             # GuiaOverlay compartido (o None)
         self.hyper1 = False          # Boton 10 mantenido
         self.hyper2 = False          # Boton 11 mantenido
         self.alttab_open = False
@@ -316,14 +471,26 @@ class NagaMacros:
             self.alttab(forward=True)
         elif n == 4:                     # siguiente pestaña
             self.tap(e.KEY_LEFTCTRL, e.KEY_TAB)
-        elif n == 5:                     # abrir guia de atajos
-            subprocess.Popen(["xdg-open", IMAGE_PATH],
-                             close_fds=True, start_new_session=True)
         elif n == 7:                     # pantalla completa
             self.tap(e.KEY_F11)
         elif n == 12:                    # overview (tecla Super)
             self.tap(e.KEY_LEFTMETA)
-        # 6, 8, 9 -> LIBRES (sin accion)
+        # 6, 8, 9 -> LIBRES (sin accion). El 5 va aparte (guia_*): actua al
+        # pulsar Y al soltar.
+
+    # ---------- guia de atajos (Boton 5) ----------
+    def guia_mostrar(self):
+        """Overlay mientras se mantiene el boton. Si el overlay no esta
+        disponible (sin tkinter/DISPLAY), abre la imagen con el visor."""
+        if self.guia is not None and self.guia.disponible:
+            self.guia.mostrar()
+            return
+        subprocess.Popen(["xdg-open", IMAGE_PATH],
+                         close_fds=True, start_new_session=True)
+
+    def guia_ocultar(self):
+        if self.guia is not None:
+            self.guia.ocultar()
 
     # ---------- bucle principal ----------
     def run(self):
@@ -381,6 +548,12 @@ class NagaMacros:
                (self.shift_held or self.scroll_key == ev.code):
                 self.tilt_combo(ev.code, ev.value)
                 return
+            if n == 5:                   # guia: visible MIENTRAS se mantiene
+                if ev.value == 1:
+                    self.guia_mostrar()
+                elif ev.value == 0:
+                    self.guia_ocultar()
+                return                   # (value 2 = auto-repeticion: nada)
             if ev.value == 1:            # pulsado
                 if n == 10:
                     self.hyper1 = True
@@ -458,6 +631,7 @@ class NagaMacros:
 
     def cleanup(self):
         self.alttab_close()
+        self.guia_ocultar()          # por si se desconecta con el Boton 5 pulsado
         for d in self.grab_devs:
             try:
                 d.ungrab()
@@ -503,6 +677,17 @@ def main():
     except Exception as ex:
         print(f"Aviso: no se pudo establecer prioridad en tiempo real: {ex}")
 
+    # Overlay de la guia (Boton 5 mantenido): uno para todo el proceso. Si Tk
+    # o la imagen fallan, se avisa y el Boton 5 cae al visor de imagenes.
+    guia = None
+    if os.path.exists(IMAGE_PATH):
+        guia = GuiaOverlay(IMAGE_PATH)
+        if not guia.disponible:
+            print(f"(sin overlay: {guia.error}; el Boton 5 abrira la imagen "
+                  f"en el visor)")
+    else:
+        print(f"(no encuentro {IMAGE_PATH}; el Boton 5 no hara nada)")
+
     # Estado compartido entre el hilo worker y el hilo del tray
     _app   = [None]               # instancia NagaMacros actual
     _stop  = [threading.Event()]  # evento de parada; se limpia en cada iteracion
@@ -521,7 +706,7 @@ def main():
             _stop[0].clear()
             _set_active(False)
             try:
-                _app[0] = NagaMacros(stop_event=_stop[0])
+                _app[0] = NagaMacros(stop_event=_stop[0], guia=guia)
             except OSError as ex:
                 _app[0] = None
                 if ex.errno == 19:
