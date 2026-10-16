@@ -3,10 +3,6 @@
 # ============================================================
 #  MACROS Razer Naga V2 Hyperspeed  -  version WINDOWS (Python)
 #
-#  Clon funcional de NagaV2_Macros.ahk, sin AutoHotkey. Existe
-#  porque algunos anticheat de juegos exigen cerrar AHK para
-#  arrancar; este demonio es un proceso Python normal.
-#
 #  Usa solo ctypes (API de Windows): NO requiere pip install.
 #  Opcionalmente usa pystray+Pillow para el icono de bandeja.
 #
@@ -85,7 +81,7 @@ def _recurso(nombre):
     return empaquetado if os.path.exists(empaquetado) else externo
 
 
-# Ruta de la imagen-guia de atajos (junto al script, igual que en AHK):
+# Ruta de la imagen-guia de atajos (junto al script):
 IMAGE_PATH = _recurso("NagaV2_atajos.png")
 
 
@@ -158,9 +154,9 @@ APP_CACHE_TTL = 0.3
 ZOOM_RUEDA_STEPS = 1
 
 # Que teclas usa el zoom por teclado (todas las apps salvo ZOOM_CON_RUEDA).
-#   False -> "+/-" de la FILA PRINCIPAL (VK_OEM_PLUS/MINUS). Es lo que hacia el
-#            .ahk con Send("^-") y lo que esperan los navegadores; en Google Docs
-#            dentro de Edge da el zoom del documento.
+#   False -> "+/-" de la FILA PRINCIPAL (VK_OEM_PLUS/MINUS). Es lo que esperan
+#            los navegadores; en Google Docs dentro de Edge da el zoom del
+#            documento.
 #   True  -> "+/-" del NUMPAD (VK_ADD/VK_SUBTRACT). Independiente del layout,
 #            pero algunas apps web lo tratan distinto.
 ZOOM_CON_NUMPAD = False
@@ -537,7 +533,7 @@ class GuiaOverlay:
 
 
 # ============================================================
-#  Logica de macros (equivalente al .ahk)
+#  Logica de macros
 # ============================================================
 class NagaMacros:
     def __init__(self):

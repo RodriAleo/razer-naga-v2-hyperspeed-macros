@@ -5,10 +5,8 @@
 La imagen se escribe en las carpetas de las implementaciones activas, porque
 cada una la abre desde su propio directorio (Boton 5):
 
-    windows-python/NagaV2_atajos.png
+    windows/NagaV2_atajos.png
     linux/NagaV2_atajos.png
-
-(windows-ahk/ esta deprecada: su copia ya no se regenera.)
 
 Al cambiar una macro: edita CELDAS y/o SECCIONES aqui abajo y re-ejecuta.
 El numero de version se lee de CHANGELOG.md: re-ejecutar tambien al subirla.
@@ -80,8 +78,7 @@ def _leer_version():
 TITULO = "RAZER NAGA V2 HYPERSPEED  -  Atajos"
 
 # Carpetas donde se deja la imagen (relativas a este archivo)
-# (windows-ahk/ NO: esta deprecada y su copia queda congelada en la v1.1.0)
-DESTINOS = ["windows-python", "linux"]
+DESTINOS = ["windows", "linux"]
 NOMBRE_IMAGEN = "NagaV2_atajos.png"
 
 # ---------------- ESTILO ----------------

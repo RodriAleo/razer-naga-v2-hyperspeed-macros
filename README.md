@@ -4,41 +4,30 @@ Macros para los **12 botones laterales** del ratón Razer Naga V2 Hyperspeed,
 con dos modos **Hypershift**, un selector **Alt+Tab persistente** y soporte
 para el **tilt** de la rueda.
 
-El mismo conjunto de atajos está implementado en dos versiones activas
-(Windows y Linux), cada una en su carpeta. Hay además una versión AutoHotkey
-**deprecada** que ya no se mantiene:
+El mismo conjunto de atajos está implementado en dos versiones equivalentes,
+cada una en su carpeta:
 
 | Sistema | Carpeta | Tecnología |
 |---------|---------|------------|
-| **Windows** | [`windows-python/`](windows-python/) | Python + `ctypes` — **sin AutoHotkey** |
-| ~~Windows (original)~~ ⛔ deprecada | [`windows-ahk/`](windows-ahk/) | AutoHotkey v2 — congelada en v1.1.0 |
+| **Windows** | [`windows/`](windows/) | Python + `ctypes` |
 | **Linux** (Wayland/X11) | [`linux/`](linux/) | Python + `evdev`/`uinput` |
 
 ```
-├── windows-python/          ← versión para Windows
+├── windows/
 │   ├── naga_macros_win.py       el demonio de macros
 │   ├── NagaV2_Macros_Win.vbs    lanzador (doble clic, sin consola)
 │   ├── autoarranque.ps1         activa/desactiva el inicio con Windows
 │   └── NagaV2_atajos.png        guía de atajos (la abre el Botón 5)
-├── windows-ahk/             ⛔ DEPRECADA (congelada en v1.1.0, no se actualiza)
-│   ├── NagaV2_Macros.ahk
-│   └── NagaV2_atajos.png
 ├── linux/
 │   ├── naga_macros.py
 │   ├── naga-macros.service      unidad systemd (autoarranque)
 │   └── NagaV2_atajos.png
-├── generar_guia_atajos.py   ← regenera la imagen en windows-python/ y linux/
+├── generar_guia_atajos.py   ← regenera la imagen en windows/ y linux/
 └── CHANGELOG.md             ← versión e historial de cambios
 ```
 
 > La imagen está repetida a propósito en cada carpeta: el **Botón 5** la abre
-> con una ruta relativa al script, así cada versión es autocontenida.
-
-> **⛔ La versión AutoHotkey está deprecada.** Algunos **anticheat** de juegos
-> no arrancan si detectan AutoHotkey, obligando a cerrarlo y reabrirlo cada vez;
-> por eso nació la versión en Python, que hace lo mismo como proceso normal y
-> la ha sustituido. `windows-ahk/` se conserva solo como referencia histórica,
-> congelada en la v1.1.0: no recibe macros nuevas ni arreglos.
+> con una ruta relativa al script.
 
 ---
 
@@ -121,18 +110,18 @@ Correspondencia botón → tecla:
 > solo `Shift` no hay zoom; el `Shift` sirve únicamente para distinguir el tilt
 > del botón (los scripts mandan rueda horizontal nativa, que no depende de
 > modificadores). En Linux da igual (los modificadores se capturan), pero se usa
-> `Shift` en las tres versiones para tener un único binding.
+> `Shift` en ambas versiones para tener un único binding.
 >
 > Con esto el tilt funciona **igual en Windows y Linux** (antes el tilt derecho
 > se perdía en Linux). La velocidad del scroll lateral se ajusta con
-> `SCROLL_INTERVALO` (AHK) y `TILT_SCROLL_INTERVAL` (ambos Python).
+> `TILT_SCROLL_INTERVAL` (en ambos scripts).
 
 ---
 
-## Windows — versión Python (recomendada, sin AutoHotkey)
+## Windows
 
 Pensada para no tener que cerrar nada al jugar: es un proceso Python normal,
-así que los anticheat que bloquean AutoHotkey no la afectan.
+así que los anticheat de los juegos no la afectan.
 
 ### Requisitos
 - **Python 3.8+** ([python.org](https://www.python.org/downloads/) — marca
@@ -144,7 +133,7 @@ así que los anticheat que bloquean AutoHotkey no la afectan.
   ```
 
 ### Uso
-Doble clic en **`windows-python/NagaV2_Macros_Win.vbs`** (arranca sin ventana
+Doble clic en **`windows/NagaV2_Macros_Win.vbs`** (arranca sin ventana
 de consola).
 
 Si instalaste `pystray`, aparece un icono verde en la bandeja con el menú
@@ -167,12 +156,12 @@ imagen con el visor del sistema, como antes.
 Para ver los mensajes (diagnóstico), ejecútalo desde una terminal:
 
 ```bash
-python windows-python/naga_macros_win.py
+python windows/naga_macros_win.py
 ```
 
 ### Arranque automático con Windows
 
-Desde la carpeta `windows-python/`:
+Desde la carpeta `windows/`:
 
 ```bash
 powershell -ExecutionPolicy Bypass -File autoarranque.ps1
@@ -199,7 +188,7 @@ acceso directo de `NagaV2_Macros_Win.vbs`.
 Si prefieres un ejecutable en vez de lanzar el script, se compila con:
 
 ```bash
-powershell -ExecutionPolicy Bypass -File windows-python/compilar_exe.ps1
+powershell -ExecutionPolicy Bypass -File windows/compilar_exe.ps1
 ```
 
 Genera `NagaV2_Macros_Win.exe` (un solo archivo, sin consola, con la guía de
@@ -258,8 +247,8 @@ python -c "import naga_macros_win as m, time; time.sleep(3); print(m.app_en_foco
 Añade lo que imprima al conjunto y reinicia el script.
 
 > Solo el **zoom** cambia según la app; el resto de macros se comporta igual en
-> todas. Esta función es exclusiva de la versión Python de Windows (el `.ahk` y
-> la versión de Linux siempre usan `Ctrl + +/−`).
+> todas. Esta función es exclusiva de Windows (la versión de Linux siempre usa
+> `Ctrl + +/−`).
 
 En estas apps cada muesca se manda como un gesto completo (`Ctrl↓` + rueda +
 `Ctrl↑`) en un único envío, así que **no hace falta seguir manteniendo el
@@ -267,47 +256,16 @@ Hypershift 2** después de girar: el zoom ya está garantizado. Si el paso te
 resulta corto, sube `ZOOM_RUEDA_STEPS`.
 
 En el resto de las apps el zoom va por teclado, con el `+`/`−` de la **fila
-principal** (`Ctrl +` / `Ctrl −`) — igual que hacía la versión AutoHotkey. Es lo
+principal** (`Ctrl +` / `Ctrl −`). Es lo
 que esperan los navegadores; en Google Docs dentro de Edge da el zoom del
 documento, no el de toda la página. Si prefieres el numpad, pon
 `ZOOM_CON_NUMPAD = True`.
 
 ---
 
-## Windows — versión AutoHotkey (⛔ deprecada)
-
-> **Deprecada desde la v1.1.0 — no se mantiene.** Usa la versión Python de
-> arriba. Esta sección queda solo como referencia histórica; el `.ahk` no
-> tendrá las macros ni los arreglos posteriores a la v1.1.0.
-
-### Requisitos
-- [AutoHotkey **v2**](https://www.autohotkey.com/) (¡v2, no v1!).
-
-### Uso
-1. Doble clic en `windows-ahk/NagaV2_Macros.ahk`.
-2. Aparece un icono verde **"H"** en la bandeja del sistema.
-3. Tras editar el script: clic derecho en el icono → **Reload Script**.
-
-### Arranque automático con Windows
-Crea un acceso directo del `.ahk` en la carpeta de Inicio:
-
-1. `Win + R` → escribe `shell:startup` → Enter.
-2. Copia ahí un acceso directo de `NagaV2_Macros.ahk`.
-
-A partir de entonces el script se lanza solo al iniciar sesión.
-Para desactivarlo: borra el acceso directo de esa carpeta (o desde
-**Administrador de tareas → Inicio**).
-
-> ⚠️ **No ejecutes las dos versiones de Windows a la vez**: ambas capturan las
-> mismas teclas y cada pulsación se procesaría dos veces. Si activaste el
-> autoarranque de una, desactiva el de la otra.
-
----
-
 ## Linux (Ubuntu — Wayland o X11)
 
-AutoHotkey no existe en Linux, así que se usa un demonio en Python que lee el
-ratón con `evdev` e inyecta las teclas con `uinput` (a nivel de kernel, por
+En Linux se usa un demonio en Python que lee el ratón con `evdev` e inyecta las teclas con `uinput` (a nivel de kernel, por
 eso funciona **igual en Wayland y X11**).
 
 ### Requisitos
@@ -396,9 +354,8 @@ Detalles de la unidad que conviene no cambiar a la ligera:
 ## Versión
 
 La versión y el historial de cambios viven en **[`CHANGELOG.md`](CHANGELOG.md)**,
-en la raíz del repo. Es la **fuente única**: los scripts (Windows Python y
-Linux) y la guía de atajos leen de ahí el número de la primera entrada
-`## [X.Y.Z]`. (El AHK deprecado tiene la suya fija en 1.1.0.)
+en la raíz del repo. Es la **fuente única**: los scripts (Windows y Linux) y
+la guía de atajos leen de ahí el número de la primera entrada `## [X.Y.Z]`.
 
 Dónde se ve: en el icono de la bandeja (tooltip y primera línea del menú que se
 abre al hacer clic) y en la cabecera de la guía de atajos.
@@ -425,9 +382,8 @@ La imagen `NagaV2_atajos.png` (la que abre el **Botón 5**) se genera con
 python generar_guia_atajos.py
 ```
 
-Escribe la imagen en **las dos carpetas activas** de una sola pasada
-(`windows-python/` y `linux/`), porque cada script la abre desde su propio
-directorio. La copia de `windows-ahk/` (deprecada) ya no se regenera.
+Escribe la imagen en **las dos carpetas** de una sola pasada (`windows/` y
+`linux/`), porque cada script la abre desde su propio directorio.
 
 Requiere Pillow (`pip install pillow`). Funciona en Windows y en Linux: si no
 encuentra la fuente *Segoe UI* usa una alternativa del sistema.
@@ -452,10 +408,9 @@ del archivo y vuelve a ejecutarlo.
 
 - **Selector Alt+Tab persistente (botones 2 y 3):** mantiene `Alt` pulsado
   entre pulsaciones y lo suelta tras un periodo de inactividad
-  (`ALTTAB_TIMEOUT`, por defecto 0.8 s). En AHK se declaran **dos hotkeys por
-  botón** (`F14::` y `!F14::`) más el modo `{Blind}`, para no cerrar el selector
-  en cada pulsación. No se usa el comodín `*F14::` porque capturaría también
-  `Shift+F14`, que es el tilt izquierdo.
+  (`ALTTAB_TIMEOUT`, por defecto 0.8 s). `Shift+F14` es el tilt izquierdo, así
+  que los scripts lo distinguen explícitamente del Botón 2 para no abrir el
+  selector por error.
 - **Hypershift:** los botones 10 y 11 actúan como modificador mientras se
   mantienen pulsados; la rueda/tilt/clics cambian de función y el scroll
   normal se suprime.
@@ -476,15 +431,12 @@ del archivo y vuelve a ejecutarlo.
 
 ```
 .
-├── windows-python/
-│   ├── naga_macros_win.py      # Windows (Python + ctypes, sin AutoHotkey)
+├── windows/
+│   ├── naga_macros_win.py      # Windows (Python + ctypes)
 │   ├── NagaV2_Macros_Win.vbs   # Lanzador sin consola
 │   ├── autoarranque.ps1        # Crea/quita el acceso directo de inicio
 │   ├── compilar_exe.ps1        # Compila el .exe (PyInstaller)
 │   ├── NagaV2_Macros.ico
-│   └── NagaV2_atajos.png
-├── windows-ahk/                # ⛔ DEPRECADA (congelada en v1.1.0)
-│   ├── NagaV2_Macros.ahk       # Windows (AutoHotkey v2)
 │   └── NagaV2_atajos.png
 ├── linux/
 │   ├── naga_macros.py          # Linux (Python evdev/uinput)

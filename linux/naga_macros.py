@@ -3,7 +3,7 @@
 # ============================================================
 #  MACROS Razer Naga V2 Hyperspeed  -  version Linux (Wayland/X11)
 #
-#  Equivalente al script de AutoHotkey, pero para Linux.
+#  Equivalente a la version de Windows (windows/naga_macros_win.py).
 #  Lee los eventos del raton con evdev e inyecta las
 #  combinaciones de teclas con uinput (a nivel de kernel,
 #  por eso funciona igual en Wayland y en X11).
@@ -87,7 +87,7 @@ VERSION = _leer_version()
 # Solo se "capturan" los dispositivos cuyo nombre contenga esto:
 DEVICE_NAME_CONTAINS = "naga"
 
-# Ruta de la imagen-guia de atajos (junto al script, igual que en AHK):
+# Ruta de la imagen-guia de atajos (junto al script):
 IMAGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "NagaV2_atajos.png")
 
 # Tiempo (segundos) que el selector Alt+Tab sigue abierto sin pulsar:

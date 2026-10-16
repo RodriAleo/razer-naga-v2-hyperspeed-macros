@@ -4,45 +4,30 @@ Macros para el ratón **Razer Naga V2 Hyperspeed**. Los 12 botones laterales
 están configurados (en Razer Synapse, guardado en memoria onboard) para enviar
 **F13–F24**; los scripts capturan esas teclas y ejecutan la macro real.
 
-Hay **dos implementaciones activas** que deben mantenerse sincronizadas
-(Windows/Python y Linux), más una **deprecada** (AutoHotkey) que ya no se toca:
-
-> ⛔ **`windows-ahk/` está DEPRECADA desde la v1.1.0 — NO actualizarla.**
-> En Windows solo se usa `windows-python/`. Al agregar o cambiar macros, subir
-> la versión o regenerar la guía, **ignorar `windows-ahk/`**: se conserva
-> congelada tal como quedó en la v1.1.0 (su versión está fija en el script y su
-> copia de la imagen ya no se regenera) solo como referencia histórica. Las
-> menciones al AHK en las recetas de abajo son contexto histórico, no tareas.
+Hay **dos implementaciones equivalentes** (Windows y Linux, ambas en Python)
+que deben mantenerse sincronizadas, cada una en su carpeta:
 
 ```
-├── windows-python/   naga_macros_win.py · NagaV2_Macros_Win.vbs · autoarranque.ps1 · NagaV2_atajos.png
-├── windows-ahk/      NagaV2_Macros.ahk · NagaV2_atajos.png   ⛔ DEPRECADA (congelada en v1.1.0)
+├── windows/          naga_macros_win.py · NagaV2_Macros_Win.vbs · autoarranque.ps1 · compilar_exe.ps1 · NagaV2_atajos.png
 ├── linux/            naga_macros.py · naga-macros.service · NagaV2_atajos.png
-├── generar_guia_atajos.py   (genera la imagen en windows-python/ y linux/)
+├── generar_guia_atajos.py   (genera la imagen en windows/ y linux/)
 └── CHANGELOG.md             (versión + historial: fuente única, ver "Versionado")
 ```
 
 | Archivo | Sistema | Cómo recargar / probar |
 |---------|---------|------------------------|
-| `windows-python/naga_macros_win.py` | Windows (Python + ctypes, **sin AHK**) | Cerrar desde la bandeja y volver a lanzar el `.vbs` |
-| `windows-ahk/NagaV2_Macros.ahk` | ⛔ **DEPRECADA** — Windows (AutoHotkey v2) | No se mantiene |
+| `windows/naga_macros_win.py` | Windows (Python + `ctypes`) | "Reiniciar" en el menú de la bandeja (o cerrar y volver a lanzar el `.vbs`) |
 | `linux/naga_macros.py` | Linux Wayland/X11 (Python `evdev`/`uinput`) | `systemctl --user restart naga-macros` (o `sudo -E python3 linux/naga_macros.py`) |
-| `windows-python/NagaV2_Macros_Win.vbs` | Windows — lanzador sin consola (`pythonw`) | Doble clic |
-| `windows-python/autoarranque.ps1` | Windows — crea/borra el acceso directo en `shell:startup` | `-Estado` para consultar, `-Quitar` para desactivar |
+| `windows/NagaV2_Macros_Win.vbs` | Windows — lanzador sin consola (`pythonw`) | Doble clic |
+| `windows/autoarranque.ps1` | Windows — crea/borra el acceso directo en `shell:startup` | `-Estado` para consultar, `-Quitar` para desactivar |
 | `linux/naga-macros.service` | Linux — unidad systemd de usuario (autoarranque) | `cp` a `~/.config/systemd/user/`, ajustar `ExecStart`, `enable --now` |
-| `NagaV2_atajos.png` (×2 activas) | Guía de atajos visual (la abre el Botón 5) | Se **regenera** con `generar_guia_atajos.py` |
+| `NagaV2_atajos.png` (×2) | Guía de atajos visual (la abre el Botón 5) | Se **regenera** con `generar_guia_atajos.py` |
 | `generar_guia_atajos.py` | Generador de la imagen (Pillow, multiplataforma) | `python generar_guia_atajos.py` |
 | `README.md` | Documentación de usuario | — |
 
-> **La imagen está duplicada a propósito** en `windows-python/` y `linux/`:
-> cada script la abre con una ruta relativa a sí mismo. El generador escribe
-> ambas de una pasada — **no editar una copia a mano**. (La de `windows-ahk/`
-> quedó congelada con el AHK.)
-
-> **¿Por qué se deprecó el AHK?** El `.ahk` y `naga_macros_win.py` hacían lo
-> mismo; el clon en Python nació porque algunos **anticheat** de juegos exigen
-> cerrar AutoHotkey para arrancar, y acabó sustituyéndolo. Desde la v1.1.0 solo
-> se mantiene la versión Python.
+> **La imagen está duplicada a propósito** en `windows/` y `linux/`: cada
+> script la abre con una ruta relativa a sí mismo. El generador escribe ambas de
+> una pasada — **no editar una copia a mano**.
 
 ## Mapa de botones (fuente de verdad)
 
@@ -80,7 +65,7 @@ Botón → tecla: **Botón N = F(12+N)** → Botón 1=F13 … Botón 12=F24.
 
 ## ⚠️ Al AGREGAR o CAMBIAR una macro — tocar SIEMPRE estos 5 sitios
 
-1. **Windows / Python** → `windows-python/naga_macros_win.py`
+1. **Windows** → `windows/naga_macros_win.py`
    - Botón simple: método `boton_simple()` (usa el número de botón).
    - Combo de Hypershift: método `on_mouse()` (ramas `self.hyper1` / `self.hyper2`).
    - Tilt: método `tilt()`. Acción que NO debe repetirse: envolver con `self.once(...)`.
@@ -98,8 +83,6 @@ Botón → tecla: **Botón N = F(12+N)** → Botón 1=F13 … Botón 12=F24.
 
 Luego, si procede: `git add . && git commit`.
 
-**No** tocar `windows-ahk/` (deprecada, ver arriba).
-
 > Mantener los 5 en coherencia es lo importante. Un cambio que solo toca uno de
 > ellos deja el proyecto inconsistente (p. ej. Windows y Linux divergen, o la
 > guía de atajos miente).
@@ -113,12 +96,9 @@ la **primera** entrada `## [X.Y.Z] - fecha`. Nadie lo tiene escrito a mano:
 
 | Quién | Cómo lo lee |
 |-------|-------------|
-| `windows-python/naga_macros_win.py` | `_leer_version()` → `VERSION`. Como script lee `../CHANGELOG.md`; compilado lee la copia **empaquetada en el `.exe`** (`--add-data` en `compilar_exe.ps1`), a propósito: un `.exe` viejo no debe mostrar la versión de un repo más nuevo que su código. |
+| `windows/naga_macros_win.py` | `_leer_version()` → `VERSION`. Como script lee `../CHANGELOG.md`; compilado lee la copia **empaquetada en el `.exe`** (`--add-data` en `compilar_exe.ps1`), a propósito: un `.exe` viejo no debe mostrar la versión de un repo más nuevo que su código. |
 | `linux/naga_macros.py` | `_leer_version()` → `VERSION` (lee `../CHANGELOG.md`). |
 | `generar_guia_atajos.py` | `_leer_version()` → la pinta en la cabecera de la imagen. |
-
-El AHK deprecado **no** lee el CHANGELOG: tiene `NAGA_VERSION := "1.1.0"` fijo
-para que no aparente versiones que no tiene.
 
 Se muestra en el icono de la bandeja (tooltip + primera línea, deshabilitada,
 del menú) y en la cabecera de la guía. Si el CHANGELOG no se encuentra, los
@@ -137,29 +117,27 @@ sitios a tocar) debería ir acompañada de su entrada en el CHANGELOG.
 
 ---
 
-## Equivalencias de sintaxis AHK ↔ Windows/Python ↔ Linux/evdev
+## Equivalencias de sintaxis Windows ↔ Linux
 
-> La columna AHK queda como referencia histórica (AHK deprecado).
-
-| Acción | AHK (`NagaV2_Macros.ahk`) | Win/Python (`naga_macros_win.py`) | Linux (`naga_macros.py`) |
-|--------|---------------------------|-----------------------------------|--------------------------|
-| Combo de teclas | `Send("^c")` | `tap(VK["CONTROL"], VK["C"])` | `self.tap(e.KEY_LEFTCTRL, e.KEY_C)` |
-| Tecla suelta | `Send("{F11}")` | `tap(VK["F11"])` | `self.tap(e.KEY_F11)` |
-| Tecla multimedia | `Send("{Media_Next}")` | `tap(VK["MEDIA_NEXT"])` | `self.tap(e.KEY_NEXTSONG)` |
-| Volumen | `Send("{Volume_Up}")` | `tap(VK["VOLUME_UP"])` | `self.tap(e.KEY_VOLUMEUP)` |
-| Scroll lateral | `SendEvent("{WheelRight}")` | `wheel(horizontal=True, notches=1)` | `self.hscroll(1)` |
-| Abrir archivo/app | `Run(...)` | `os.startfile(ruta)` | `subprocess.Popen(["xdg-open", ruta], close_fds=True, start_new_session=True)` |
-| Modificadores | `^`=Ctrl `!`=Alt `+`=Shift `#`=Win | `VK["CONTROL"/"MENU"/"SHIFT"/"LWIN"]` | `KEY_LEFTCTRL/LEFTALT/LEFTSHIFT/LEFTMETA` |
+| Acción | Windows (`naga_macros_win.py`) | Linux (`naga_macros.py`) |
+|--------|--------------------------------|--------------------------|
+| Combo de teclas | `tap(VK["CONTROL"], VK["C"])` | `self.tap(e.KEY_LEFTCTRL, e.KEY_C)` |
+| Tecla suelta | `tap(VK["F11"])` | `self.tap(e.KEY_F11)` |
+| Tecla multimedia | `tap(VK["MEDIA_NEXT"])` | `self.tap(e.KEY_NEXTSONG)` |
+| Volumen | `tap(VK["VOLUME_UP"])` | `self.tap(e.KEY_VOLUMEUP)` |
+| Scroll lateral | `wheel(horizontal=True, notches=1)` | `self.hscroll(1)` |
+| Abrir archivo/app | `os.startfile(ruta)` | `subprocess.Popen(["xdg-open", ruta], close_fds=True, start_new_session=True)` |
+| Modificadores | `VK["CONTROL"/"MENU"/"SHIFT"/"LWIN"]` | `KEY_LEFTCTRL/LEFTALT/LEFTSHIFT/LEFTMETA` |
 
 ---
 
 ## Recetas técnicas y gotchas (no romper)
 
-### Windows/Python (`naga_macros_win.py`) — específicos de esta implementación
+### Windows (`naga_macros_win.py`) — específicos de esta implementación
 
-- **Motivo de existir:** los anticheat que exigen cerrar AutoHotkey. Es un
-  proceso Python normal. Usa **solo `ctypes`** (nada de `pip` para el núcleo):
-  menos dependencias y menor superficie de detección. `pystray`/`Pillow` son
+- **Proceso Python normal** (así no choca con los anticheat de juegos). Usa
+  **solo `ctypes`** (nada de `pip` para el núcleo): menos dependencias y menor
+  superficie de detección. `pystray`/`Pillow` son
   **opcionales** (solo el icono de bandeja); si faltan, el script corre igual.
 - **Hooks low-level + bomba de mensajes:** `WH_KEYBOARD_LL`/`WH_MOUSE_LL` **solo
   funcionan si el hilo que los instala bombea mensajes** (`GetMessageW`). Por eso
@@ -195,8 +173,7 @@ sitios a tocar) debería ir acompañada de su entrada en el CHANGELOG.
   llega a la app como **`Ctrl+Shift+C`** — que no es copiar (en navegadores abre
   el inspector). `tap_limpio()` suelta `LSHIFT`/`RSHIFT` **en la misma llamada a
   `SendInput`** (atómico, para que Synapse no re-afirme el Shift en el medio).
-  El AHK no sufría esto porque `Send("^c")` ya neutraliza los modificadores del
-  hotkey. Ojo con el diagnóstico: el fallo **se disimula en pegar**, porque
+  Ojo con el diagnóstico: el fallo **se disimula en pegar**, porque
   `Ctrl+Shift+V` es "pegar sin formato" y aparenta funcionar — el síntoma visible
   fue "copia no, pega sí".
 - **⚠️ El scroll lateral corre en un HILO DEDICADO con `Event`, no con timers.**
@@ -221,8 +198,8 @@ sitios a tocar) debería ir acompañada de su entrada en el CHANGELOG.
   mal la tecla. Bug real: en Google Docs dentro de Edge el zoom con `Ctrl +/−`
   no se comportaba como el del teclado físico.
 - **Zoom por teclado — fila principal, NO numpad (en Windows):** `ZOOM_CON_NUMPAD`
-  (por defecto `False`) usa `VK_OEM_PLUS`/`VK_OEM_MINUS`, que es lo que hacía el
-  `.ahk` con `Send("^-")` y lo que esperan los navegadores. **Ojo con "unificar"
+  (por defecto `False`) usa `VK_OEM_PLUS`/`VK_OEM_MINUS`, que es lo que esperan
+  los navegadores. **Ojo con "unificar"
   esto con Linux:** allá se usa el numpad a propósito (`KEY_KPPLUS`/`KEY_KPMINUS`)
   porque los OEM pasan por el keymap del compositor y en layouts no-US producen
   caracteres raros. En Windows ese problema no existe y el numpad, en cambio,
@@ -237,8 +214,8 @@ sitios a tocar) debería ir acompañada de su entrada en el CHANGELOG.
   esto se consultaría decenas de veces por segundo. `wheel_ctrl()` manda
   `Ctrl↓ + rueda + Ctrl↑` en **un solo `SendInput`** (misma lección que
   `tap_limpio`: si se separa, el modificador se pierde o lo pisa Synapse).
-  ⚠️ **Rompe a propósito la paridad de las 3 implementaciones**: es una función
-  exclusiva de Windows/Python (el AHK y Linux siempre usan `Ctrl + +/−`). Si se
+  ⚠️ **Rompe a propósito la paridad Windows/Linux**: es una función exclusiva
+  de Windows (Linux siempre usa `Ctrl + +/−`). Si se
   agregan más comportamientos por app, documentarlo en el README.
 - **⚠️ Zoom con Ctrl+rueda → los 3 eventos en UN `SendInput`** (`wheel_ctrl()`).
   El estado del teclado que ve la app está sincronizado con el **orden de los
@@ -309,23 +286,15 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   verdad con dos instancias abiertas a la vez). Termina con `os._exit(0)` para
   no volver por el flujo normal de `main()`.
 
-### Comunes a las tres implementaciones
+### Comunes a ambas implementaciones
 
 - **Selector Alt+Tab persistente (botones 2/3):**
-  - Windows: se listan **dos hotkeys explícitos** por botón — `F14::` (1ª
-    pulsación, sin modificadores) y `!F14::` (pulsaciones con Alt sostenido por
-    el selector) — más modo `{Blind}` + `SendMode("Event")`. Sin cubrir el caso
-    `Alt` solo cuenta la 1ª pulsación (Alt queda pulsado y la tecla pasa a ser
-    `Alt+Fxx`); sin `{Blind}` el selector se cierra/reabre en cada pulsación.
-    **NO usar el comodín `*F14::`**: capturaría también `Shift+F14`, que es el
-    tilt izquierdo, y abriría el selector por error (ver receta del tilt).
-  - Win/Python y Linux: se mantiene Alt pulsado (`key_down(VK["MENU"])` /
-    `KEY_LEFTALT`) y se suelta tras `ALTTAB_TIMEOUT` con un timer. No hay
-    problema de comodines: la desambiguación tilt-vs-botón es explícita.
+  Se mantiene Alt pulsado (`key_down(VK["MENU"])` / `KEY_LEFTALT`) y se suelta
+  tras `ALTTAB_TIMEOUT` con un timer. Ojo: `Shift+F14` es el tilt izquierdo, así
+  que la desambiguación tilt-vs-botón tiene que ser explícita (ver receta del
+  tilt) o el tilt abriría el selector por error.
 - **Hypershift:**
-  - Windows (AHK): combinaciones personalizadas `F22 & WheelUp::` (F22/F23 como
-    tecla prefijo).
-  - Win/Python: `on_key()` mantiene `self.hyper1`/`hyper2`; `on_mouse()` actúa
+  - Windows: `on_key()` mantiene `self.hyper1`/`hyper2`; `on_mouse()` actúa
     solo si alguno está activo y devuelve `1` para **suprimir** el scroll/clic
     normal. Sin hypershift no toca nada (deja pasar todo).
   - Linux: `naga_macros.py` **captura (grab)** la interfaz de ratón para poder
@@ -335,10 +304,7 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   evento de rueda sino como combo de teclado (ver el mapa de botones). **Sin
   Ctrl a propósito** (con Ctrl la rueda haría zoom en Windows). Cada script lo
   traduce según el hypershift:
-  - Windows (AHK): hotkeys `+F13::` / `+F14::` → función `TiltLateral(lado)`,
-    que mira `GetKeyState("F22"/"F23","P")` para decidir HS1/HS2/sin-HS. Las viejas
-    líneas `F22/F23 & WheelLeft/Right` se eliminaron.
-  - Win/Python: en `on_key()`, F13/F14 con `self.shift_held` se desvían a
+  - Windows: en `on_key()`, F13/F14 con `self.shift_held` se desvían a
     `tilt(side)`. El `or self.scroll_side == side` garantiza ver el soltado
     aunque Synapse libere el Shift antes que la F-key.
   - Linux (Python): en `process()`, F13/F14 con `shift_held` se desvían a
@@ -347,23 +313,14 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
     que Synapse mande el modificador ANTES que la F-key (orden estándar).
 - **Desplazamiento lateral continuo (tilt sin hypershift):** se repite mientras
   se mantiene el tilt.
-  - Windows (AHK): timer `ScrollTick` que manda rueda **horizontal nativa**
-    `SendEvent("{WheelRight/Left}")`. Clave del **anti-zoom**: el binding es
-    `Shift+Fxx` **sin Ctrl** (con Ctrl la rueda haría zoom y no se puede soltar
-    Ctrl de forma fiable, Synapse lo mantiene). El `Shift` solo distingue el tilt
-    del botón; NO se usa para el scroll (Synapse lo suelta enseguida, así que
-    depender de `Shift`+rueda vertical daba scroll vertical). **Stop doble:**
-    hotkey `*Fxx up::DetenerScroll()` (event-driven) + respaldo por sondeo
-    `GetKeyState(tecla,"P")` en `ScrollTick`. Usar **`SendEvent`, NO `Send`**:
-    `Send`=`SendInput` (por `SendMode("Input")`) congela el hook y se comía el
-    soltado, dejando el scroll trabado. `scrollLado` lleva el estado; un `#HotIf
-    (scrollLado=...)` ignora las auto-repeticiones de la F-key (botones 1/2).
-  - Win/Python: `_scroll_tick()` se reprograma con `threading.Timer` cada
-    `TILT_SCROLL_INTERVAL` y manda `wheel(horizontal=True, ...)`
-    (`MOUSEEVENTF_HWHEEL`). Mismo **stop doble** que el AHK: keyup event-driven +
-    respaldo con `is_physically_down()`. Aquí `SendInput` no da el problema del
-    AHK porque el hook y el envío están en hilos distintos y los eventos propios
-    se filtran por `INJECTED_TAG`.
+  - Windows: hilo dedicado que manda rueda **horizontal nativa** cada
+    `TILT_SCROLL_INTERVAL` con `wheel(horizontal=True, ...)`
+    (`MOUSEEVENTF_HWHEEL`); se para con el keyup de la F-key + watchdog (ver
+    receta del scroll lateral arriba). Clave del **anti-zoom**: el binding es
+    `Shift+Fxx` **sin Ctrl** (con Ctrl la rueda haría zoom y Synapse mantiene el
+    Ctrl). El `Shift` solo distingue el tilt del botón; NO se usa para el scroll
+    (Synapse lo suelta enseguida). Los eventos propios se filtran por
+    `INJECTED_TAG`.
   - Linux (Python): bucle `run()` con un deadline `self.next_scroll` (intervalo
     `TILT_SCROLL_INTERVAL`), llamando a `self.hscroll(...)`; se frena al recibir
     el soltado (`value == 0`) de `scroll_key`. Sin problema de zoom: los
@@ -382,20 +339,20 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   scroll vertical sintético, hay que hacer lo mismo con `REL_WHEEL_HI_RES`.
 - **Anti-repetición del tilt (en hypershift):** mantener el tilt genera muchos
   eventos. Copiar, pegar y cambio de pista se ejecutan UNA vez por inclinación
-  (AHK: función `TiltUnaVez`; Python: `self.once(...)`). El zoom y el volumen
+  (`self.once(...)` en ambos scripts). El zoom y el volumen
   SÍ se repiten al girar la rueda (no llevan anti-repetición). El scroll lateral
   sin hypershift SÍ es continuo (no usa anti-repetición).
 - **Generador de la guía (`generar_guia_atajos.py`):** sustituyó al antiguo
   `generar_guia_atajos.ps1` (solo Windows, una sola carpeta). Ahora es Python +
-  Pillow, corre también en Linux y escribe **las copias activas** de la imagen de
-  una pasada (lista `DESTINOS`; sin `windows-ahk/`, deprecada). Pinta la versión
+  Pillow, corre también en Linux y escribe **las dos copias** de la imagen de
+  una pasada (lista `DESTINOS`). Pinta la versión
   del CHANGELOG en la cabecera. Los tamaños de fuente están en **puntos**, como
   en el original de PowerShell, y se convierten a píxeles a 96 ppp (`pt * 4/3`);
   si se cambian a píxeles directamente, la imagen deja de coincidir con la
   versión histórica. Busca *Segoe UI* y cae a Arial/DejaVu/Liberation si no está.
 - **Botón 5 / ruta de la imagen:**
-  - Windows: `Run(A_ScriptDir . "\NagaV2_atajos.png")` — la imagen debe estar
-    junto al `.ahk`. Si se renombra la imagen, actualizar esta línea.
+  - Windows: `IMAGE_PATH = _recurso("NagaV2_atajos.png")` — junto al script o
+    al `.exe`, o la copia empaquetada dentro del `.exe`.
   - Linux: `IMAGE_PATH` se calcula con `os.path.dirname(os.path.abspath(__file__))`
     para ser siempre relativa al directorio del script, sin importar desde dónde
     se arranque.
@@ -456,16 +413,13 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
 
 ## Autoarranque
 
-- **Windows / Python (recomendado):** `windows-python/autoarranque.ps1` crea un
+- **Windows:** `windows/autoarranque.ps1` crea un
   acceso directo en `shell:startup`
   (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Naga V2 Macros.lnk`).
   No toca el registro ni pide administrador. Apunta a `wscript.exe` con el
   `.vbs` como argumento (así funciona aunque el `.vbs` no tenga asociación de
   archivos). Flags: `-Estado` consulta, `-Quitar` desactiva. **Guarda una ruta
   absoluta:** si se mueve el repo, hay que re-ejecutarlo.
-- **Windows / AHK:** acceso directo del `.ahk` en esa misma carpeta. **No tener
-  las dos versiones en autoarranque a la vez** (cada tecla se procesaría dos
-  veces).
 - **Linux:** servicio systemd **de usuario**, versionado en el repo como
   `linux/naga-macros.service` (instrucciones en `README.md`). Es de
   usuario y no de sistema a propósito: el ícono de bandeja y la inyección de

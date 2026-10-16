@@ -1,5 +1,5 @@
 ' Lanza naga_macros_win.py SIN ventana de consola (usa pythonw.exe).
-' Doble clic para arrancar las macros; equivalente a ejecutar el .ahk.
+' Doble clic para arrancar las macros.
 ' Para el autoarranque: pon un acceso directo de este .vbs en shell:startup
 ' Para cerrarlo: menu del icono de bandeja, o finaliza "pythonw.exe" en el
 ' Administrador de tareas.
