@@ -49,6 +49,7 @@
 # ============================================================
 
 import os
+import re
 import sys
 import ctypes
 import threading
@@ -62,10 +63,6 @@ try:
     _HAS_TRAY = True
 except ImportError:
     _HAS_TRAY = False
-
-# Version de las macros. Se muestra en el icono de la bandeja. Mantenerla
-# IGUAL en los tres scripts (ver CLAUDE.md, seccion "Versionado").
-VERSION = "1.0.0"
 
 # ---------------- CONFIGURACION ----------------
 
@@ -90,6 +87,31 @@ def _recurso(nombre):
 
 # Ruta de la imagen-guia de atajos (junto al script, igual que en AHK):
 IMAGE_PATH = _recurso("NagaV2_atajos.png")
+
+
+def _leer_version():
+    """Version de las macros: primera entrada '## [X.Y.Z]' del CHANGELOG.md
+    (fuente unica para los tres scripts y la guia). Como script se lee el de
+    la raiz del repo; compilado, la copia empaquetada DENTRO del .exe, para
+    que un .exe viejo no muestre la version de un repo mas nuevo que su codigo.
+    Si no se encuentra, devuelve '?' en vez de impedir el arranque."""
+    if CONGELADO:
+        ruta = os.path.join(getattr(sys, "_MEIPASS", BASE_DIR), "CHANGELOG.md")
+    else:
+        ruta = os.path.join(BASE_DIR, os.pardir, "CHANGELOG.md")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            for linea in f:
+                m = re.match(r"##\s*\[(\d+\.\d+\.\d+)\]", linea)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return "?"
+
+
+# Se muestra en el icono de la bandeja. Se edita en CHANGELOG.md, no aqui.
+VERSION = _leer_version()
 
 # Tiempo (segundos) que el selector Alt+Tab sigue abierto sin pulsar:
 ALTTAB_TIMEOUT = 0.8

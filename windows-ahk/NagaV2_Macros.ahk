@@ -3,10 +3,9 @@
 SendMode("Input")
 SetWorkingDir(A_ScriptDir)
 
-; Version de las macros. Se muestra en el icono de la bandeja. Mantenerla
-; IGUAL en los tres scripts (ver CLAUDE.md, seccion "Versionado").
-;@Ahk2Exe-SetVersion 1.0.0
-global NAGA_VERSION := "1.0.0"
+; Version FIJA: este script esta DEPRECADO y congelado en la v1.1.0. No lee el
+; CHANGELOG.md a proposito, para no mostrar versiones posteriores que no tiene.
+NAGA_VERSION := "1.1.0 (deprecada)"
 A_IconTip := "Naga V2 Macros v" NAGA_VERSION
 ; Primera linea del menu de la bandeja: solo informativa (deshabilitada).
 A_TrayMenu.Insert("1&", "Naga V2 Macros v" NAGA_VERSION, (*) => 0)
@@ -15,6 +14,12 @@ A_TrayMenu.Insert("2&")    ; separador
 
 ; ============================================================
 ;  MACROS para Razer Naga V2 Hyperspeed
+;
+;  ⛔ DEPRECADO desde la v1.1.0 -- NO SE MANTIENE. ⛔
+;  En Windows se usa solo la version Python (windows-python/naga_macros_win.py).
+;  Este archivo se conserva como referencia historica, congelado tal como
+;  quedo en la v1.1.0: no anadir macros ni arreglos aqui.
+;
 ;  Los 12 botones laterales estan configurados (en Razer Synapse)
 ;  para enviar las teclas F13 a F24.
 ;

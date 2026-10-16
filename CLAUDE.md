@@ -4,37 +4,45 @@ Macros para el ratón **Razer Naga V2 Hyperspeed**. Los 12 botones laterales
 están configurados (en Razer Synapse, guardado en memoria onboard) para enviar
 **F13–F24**; los scripts capturan esas teclas y ejecutan la macro real.
 
-Hay **tres implementaciones equivalentes** que deben mantenerse sincronizadas,
-cada una en su carpeta:
+Hay **dos implementaciones activas** que deben mantenerse sincronizadas
+(Windows/Python y Linux), más una **deprecada** (AutoHotkey) que ya no se toca:
+
+> ⛔ **`windows-ahk/` está DEPRECADA desde la v1.1.0 — NO actualizarla.**
+> En Windows solo se usa `windows-python/`. Al agregar o cambiar macros, subir
+> la versión o regenerar la guía, **ignorar `windows-ahk/`**: se conserva
+> congelada tal como quedó en la v1.1.0 (su versión está fija en el script y su
+> copia de la imagen ya no se regenera) solo como referencia histórica. Las
+> menciones al AHK en las recetas de abajo son contexto histórico, no tareas.
 
 ```
 ├── windows-python/   naga_macros_win.py · NagaV2_Macros_Win.vbs · autoarranque.ps1 · NagaV2_atajos.png
-├── windows-ahk/      NagaV2_Macros.ahk · NagaV2_atajos.png
+├── windows-ahk/      NagaV2_Macros.ahk · NagaV2_atajos.png   ⛔ DEPRECADA (congelada en v1.1.0)
 ├── linux/            naga_macros.py · naga-macros.service · NagaV2_atajos.png
-└── generar_guia_atajos.py   (genera la imagen en las 3 carpetas)
+├── generar_guia_atajos.py   (genera la imagen en windows-python/ y linux/)
+└── CHANGELOG.md             (versión + historial: fuente única, ver "Versionado")
 ```
 
 | Archivo | Sistema | Cómo recargar / probar |
 |---------|---------|------------------------|
 | `windows-python/naga_macros_win.py` | Windows (Python + ctypes, **sin AHK**) | Cerrar desde la bandeja y volver a lanzar el `.vbs` |
-| `windows-ahk/NagaV2_Macros.ahk` | Windows (AutoHotkey v2) | Clic derecho en icono "H" → **Reload Script** |
+| `windows-ahk/NagaV2_Macros.ahk` | ⛔ **DEPRECADA** — Windows (AutoHotkey v2) | No se mantiene |
 | `linux/naga_macros.py` | Linux Wayland/X11 (Python `evdev`/`uinput`) | `systemctl --user restart naga-macros` (o `sudo -E python3 linux/naga_macros.py`) |
 | `windows-python/NagaV2_Macros_Win.vbs` | Windows — lanzador sin consola (`pythonw`) | Doble clic |
 | `windows-python/autoarranque.ps1` | Windows — crea/borra el acceso directo en `shell:startup` | `-Estado` para consultar, `-Quitar` para desactivar |
 | `linux/naga-macros.service` | Linux — unidad systemd de usuario (autoarranque) | `cp` a `~/.config/systemd/user/`, ajustar `ExecStart`, `enable --now` |
-| `NagaV2_atajos.png` (×3) | Guía de atajos visual (la abre el Botón 5) | Se **regenera** con `generar_guia_atajos.py` |
+| `NagaV2_atajos.png` (×2 activas) | Guía de atajos visual (la abre el Botón 5) | Se **regenera** con `generar_guia_atajos.py` |
 | `generar_guia_atajos.py` | Generador de la imagen (Pillow, multiplataforma) | `python generar_guia_atajos.py` |
 | `README.md` | Documentación de usuario | — |
 
-> **La imagen está duplicada a propósito** en las tres carpetas: cada script la
-> abre con una ruta relativa a sí mismo, así cada versión es autocontenida. El
-> generador escribe las tres de una pasada — **no editar una copia a mano**.
+> **La imagen está duplicada a propósito** en `windows-python/` y `linux/`:
+> cada script la abre con una ruta relativa a sí mismo. El generador escribe
+> ambas de una pasada — **no editar una copia a mano**. (La de `windows-ahk/`
+> quedó congelada con el AHK.)
 
-> **¿Por qué dos versiones de Windows?** El `.ahk` y `naga_macros_win.py` hacen
-> lo mismo; el clon en Python existe porque algunos **anticheat** de juegos
-> exigen cerrar AutoHotkey para arrancar. Se mantiene el `.ahk` como referencia
-> histórica, pero **al cambiar una macro hay que tocar ambos** (ver la sección
-> de los sitios a tocar).
+> **¿Por qué se deprecó el AHK?** El `.ahk` y `naga_macros_win.py` hacían lo
+> mismo; el clon en Python nació porque algunos **anticheat** de juegos exigen
+> cerrar AutoHotkey para arrancar, y acabó sustituyéndolo. Desde la v1.1.0 solo
+> se mantiene la versión Python.
 
 ## Mapa de botones (fuente de verdad)
 
@@ -77,21 +85,22 @@ Botón → tecla: **Botón N = F(12+N)** → Botón 1=F13 … Botón 12=F24.
    - Combo de Hypershift: método `on_mouse()` (ramas `self.hyper1` / `self.hyper2`).
    - Tilt: método `tilt()`. Acción que NO debe repetirse: envolver con `self.once(...)`.
    - Acciones disparadas por el tilt: usar `tap_limpio()`, no `tap()` (ver recetas).
-2. **Windows / AHK** → `windows-ahk/NagaV2_Macros.ahk`
-   - Botón simple: edita el bloque `Fxx::` correspondiente.
-   - Combo de Hypershift: edita/añade líneas `F22 & ...` (HS1) o `F23 & ...` (HS2).
-3. **Linux** → `linux/naga_macros.py`
+2. **Linux** → `linux/naga_macros.py`
    - Botón simple: método `boton_simple()` (usa el número de botón).
    - Combo de Hypershift: método `process()` (ramas `self.hyper1` / `self.hyper2`).
    - Acción de tilt que NO debe repetirse: envolver con `self.once("nombre", ...)`.
-4. **Imagen** → editar las listas `CELDAS` y/o `SECCIONES` de
+3. **Imagen** → editar las listas `CELDAS` y/o `SECCIONES` de
    `generar_guia_atajos.py` y **re-ejecutarlo** (`python generar_guia_atajos.py`):
-   regenera las tres copias de `NagaV2_atajos.png` de una pasada.
-5. **README** → actualizar las tablas de atajos en `README.md`.
+   regenera las dos copias de `NagaV2_atajos.png` de una pasada.
+4. **README** → actualizar las tablas de atajos en `README.md`.
+5. **CHANGELOG** → entrada nueva (sube la versión; ver "Versionado") y volver a
+   generar la imagen para que su cabecera muestre el número nuevo.
 
 Luego, si procede: `git add . && git commit`.
 
-> Mantener los 4 en coherencia es lo importante. Un cambio que solo toca uno de
+**No** tocar `windows-ahk/` (deprecada, ver arriba).
+
+> Mantener los 5 en coherencia es lo importante. Un cambio que solo toca uno de
 > ellos deja el proyecto inconsistente (p. ej. Windows y Linux divergen, o la
 > guía de atajos miente).
 
@@ -99,26 +108,38 @@ Luego, si procede: `git add . && git commit`.
 
 ## Versionado
 
-Las tres implementaciones llevan **el mismo número de versión** (SemVer,
-`MAYOR.MENOR.PARCHE`), visible en el icono de la bandeja: en el tooltip y como
-primera línea (deshabilitada) del menú. Al publicar un cambio, subirlo en los
-**tres** sitios a la vez:
+**Fuente única: `CHANGELOG.md`** (raíz del repo). El número de versión es el de
+la **primera** entrada `## [X.Y.Z] - fecha`. Nadie lo tiene escrito a mano:
 
-| Archivo | Dónde |
-|---------|-------|
-| `windows-python/naga_macros_win.py` | `VERSION = "x.y.z"` (sección CONFIGURACION) |
-| `windows-ahk/NagaV2_Macros.ahk` | `NAGA_VERSION := "x.y.z"` y la directiva `;@Ahk2Exe-SetVersion` |
-| `linux/naga_macros.py` | `VERSION = "x.y.z"` (sección CONFIGURACION) |
+| Quién | Cómo lo lee |
+|-------|-------------|
+| `windows-python/naga_macros_win.py` | `_leer_version()` → `VERSION`. Como script lee `../CHANGELOG.md`; compilado lee la copia **empaquetada en el `.exe`** (`--add-data` en `compilar_exe.ps1`), a propósito: un `.exe` viejo no debe mostrar la versión de un repo más nuevo que su código. |
+| `linux/naga_macros.py` | `_leer_version()` → `VERSION` (lee `../CHANGELOG.md`). |
+| `generar_guia_atajos.py` | `_leer_version()` → la pinta en la cabecera de la imagen. |
 
-Criterio: **PARCHE** = arreglo sin cambiar atajos; **MENOR** = macro nueva o
-cambiada; **MAYOR** = cambio que obliga a reconfigurar algo (Synapse, rutas,
-autoarranque). Tras el commit, etiquetar: `git tag vX.Y.Z`. El `.exe` de
-Windows hay que **recompilarlo** (`compilar_exe.ps1`) para que muestre la
-versión nueva.
+El AHK deprecado **no** lee el CHANGELOG: tiene `NAGA_VERSION := "1.1.0"` fijo
+para que no aparente versiones que no tiene.
+
+Se muestra en el icono de la bandeja (tooltip + primera línea, deshabilitada,
+del menú) y en la cabecera de la guía. Si el CHANGELOG no se encuentra, los
+scripts muestran `?` pero **arrancan igual** (no romper eso); el generador sí
+aborta.
+
+> Consecuencia: las carpetas ya **no son 100 % autocontenidas** — dependen de
+> `../CHANGELOG.md` para la versión (las macros funcionan sin él).
+
+**Al publicar una versión:** entrada nueva arriba en `CHANGELOG.md` (Añadido /
+Cambiado / Corregido) → `python generar_guia_atajos.py` → commit →
+`git tag vX.Y.Z`. Criterio: **PARCHE** = arreglo sin cambiar atajos; **MENOR**
+= macro nueva o cambiada; **MAYOR** = cambio que obliga a reconfigurar algo
+(Synapse, rutas, autoarranque). Toda macro nueva o cambiada (ver la lista de
+sitios a tocar) debería ir acompañada de su entrada en el CHANGELOG.
 
 ---
 
 ## Equivalencias de sintaxis AHK ↔ Windows/Python ↔ Linux/evdev
+
+> La columna AHK queda como referencia histórica (AHK deprecado).
 
 | Acción | AHK (`NagaV2_Macros.ahk`) | Win/Python (`naga_macros_win.py`) | Linux (`naga_macros.py`) |
 |--------|---------------------------|-----------------------------------|--------------------------|
@@ -366,8 +387,9 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   sin hypershift SÍ es continuo (no usa anti-repetición).
 - **Generador de la guía (`generar_guia_atajos.py`):** sustituyó al antiguo
   `generar_guia_atajos.ps1` (solo Windows, una sola carpeta). Ahora es Python +
-  Pillow, corre también en Linux y escribe **las tres copias** de la imagen de
-  una pasada (lista `DESTINOS`). Los tamaños de fuente están en **puntos**, como
+  Pillow, corre también en Linux y escribe **las copias activas** de la imagen de
+  una pasada (lista `DESTINOS`; sin `windows-ahk/`, deprecada). Pinta la versión
+  del CHANGELOG en la cabecera. Los tamaños de fuente están en **puntos**, como
   en el original de PowerShell, y se convierten a píxeles a 96 ppp (`pt * 4/3`);
   si se cambian a píxeles directamente, la imagen deja de coincidir con la
   versión histórica. Busca *Segoe UI* y cae a Arial/DejaVu/Liberation si no está.

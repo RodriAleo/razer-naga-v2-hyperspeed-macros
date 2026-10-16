@@ -45,6 +45,7 @@
 # ============================================================
 
 import os
+import re
 import sys
 import signal
 import subprocess
@@ -61,9 +62,25 @@ except ImportError:
 
 from evdev import InputDevice, UInput, ecodes as e, list_devices
 
-# Version de las macros. Se muestra en el icono de la bandeja. Mantenerla
-# IGUAL en los tres scripts (ver CLAUDE.md, seccion "Versionado").
-VERSION = "1.0.0"
+def _leer_version():
+    """Version de las macros: primera entrada '## [X.Y.Z]' del CHANGELOG.md
+    de la raiz del repo (fuente unica para los tres scripts y la guia).
+    Si no se encuentra, devuelve '?' en vez de impedir el arranque."""
+    ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        os.pardir, "CHANGELOG.md")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            for linea in f:
+                m = re.match(r"##\s*\[(\d+\.\d+\.\d+)\]", linea)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return "?"
+
+
+# Se muestra en el icono de la bandeja. Se edita en CHANGELOG.md, no aqui.
+VERSION = _leer_version()
 
 # ---------------- CONFIGURACION ----------------
 

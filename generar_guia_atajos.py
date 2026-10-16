@@ -2,14 +2,16 @@
 # -*- coding: utf-8 -*-
 """Genera la guia visual de atajos (NagaV2_atajos.png).
 
-La imagen se escribe en LAS TRES carpetas de scripts, porque cada
-implementacion la abre desde su propio directorio (Boton 5):
+La imagen se escribe en las carpetas de las implementaciones activas, porque
+cada una la abre desde su propio directorio (Boton 5):
 
     windows-python/NagaV2_atajos.png
-    windows-ahk/NagaV2_atajos.png
     linux/NagaV2_atajos.png
 
+(windows-ahk/ esta deprecada: su copia ya no se regenera.)
+
 Al cambiar una macro: edita CELDAS y/o SECCIONES aqui abajo y re-ejecuta.
+El numero de version se lee de CHANGELOG.md: re-ejecutar tambien al subirla.
 
     python generar_guia_atajos.py
 
@@ -19,6 +21,7 @@ Requiere Pillow:   pip install pillow
 """
 
 import os
+import re
 import sys
 
 try:
@@ -63,10 +66,22 @@ SECCIONES = [
 ]
 
 PIE = "Pulsa el Boton 5 para volver a abrir esta ayuda."
+
+
+def _leer_version():
+    """Primera entrada '## [X.Y.Z]' del CHANGELOG.md (fuente unica)."""
+    ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CHANGELOG.md")
+    with open(ruta, encoding="utf-8") as f:
+        for linea in f:
+            m = re.match(r"##\s*\[(\d+\.\d+\.\d+)\]", linea)
+            if m:
+                return m.group(1)
+    sys.exit("CHANGELOG.md no tiene ninguna entrada '## [X.Y.Z]'.")
 TITULO = "RAZER NAGA V2 HYPERSPEED  -  Atajos"
 
 # Carpetas donde se deja la imagen (relativas a este archivo)
-DESTINOS = ["windows-python", "windows-ahk", "linux"]
+# (windows-ahk/ NO: esta deprecada y su copia queda congelada en la v1.1.0)
+DESTINOS = ["windows-python", "linux"]
 NOMBRE_IMAGEN = "NagaV2_atajos.png"
 
 # ---------------- ESTILO ----------------
@@ -173,8 +188,12 @@ def generar():
         y += 8
 
     d.text((24, H - 30), PIE, font=f_chica, fill=GRIS, anchor="lt")
+    # Version en la cabecera: si la guia esta desactualizada respecto a los
+    # scripts (no se regenero al subir la version), se nota a simple vista.
+    d.text((W - 24, 31), "v" + _leer_version(), font=f_cabeza, fill=NEGRO,
+           anchor="rm")
 
-    # --- guardar en las tres carpetas ---
+    # --- guardar en las carpetas destino ---
     raiz = os.path.dirname(os.path.abspath(__file__))
     escritas = []
     for carpeta in DESTINOS:

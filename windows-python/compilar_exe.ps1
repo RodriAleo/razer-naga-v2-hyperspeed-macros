@@ -14,7 +14,10 @@ Set-Location $carpeta
 
 $png = Join-Path $carpeta 'NagaV2_atajos.png'
 $ico = Join-Path $carpeta 'NagaV2_Macros.ico'
-foreach ($f in @($png, $ico, (Join-Path $carpeta 'naga_macros_win.py'))) {
+# Fuente unica de la version (raiz del repo): viaja DENTRO del exe, asi el
+# .exe muestra la version con la que se compilo.
+$changelog = Join-Path (Split-Path -Parent $carpeta) 'CHANGELOG.md'
+foreach ($f in @($png, $ico, $changelog, (Join-Path $carpeta 'naga_macros_win.py'))) {
     if (-not (Test-Path $f)) { Write-Error "Falta $f"; exit 1 }
 }
 
@@ -26,11 +29,13 @@ Start-Sleep -Milliseconds 500
 # --onefile   : un solo archivo, comodo de mover y de anclar al menu de Inicio
 # --noconsole : sin ventana de consola (equivale a pythonw)
 # --add-data  : la guia de atajos viaja DENTRO del exe, para que el Boton 5
-#               funcione aunque el .exe se mueva solo a otra carpeta
+#               funcione aunque el .exe se mueva solo a otra carpeta; y el
+#               CHANGELOG.md, de donde sale el numero de version
 python -m PyInstaller --noconfirm --clean --onefile --noconsole `
     --name "NagaV2_Macros_Win" `
     --icon "$ico" `
     --add-data "$png;." `
+    --add-data "$changelog;." `
     --distpath $carpeta `
     --workpath (Join-Path $env:TEMP 'naga_build') `
     --specpath (Join-Path $env:TEMP 'naga_build') `

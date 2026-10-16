@@ -4,40 +4,41 @@ Macros para los **12 botones laterales** del ratón Razer Naga V2 Hyperspeed,
 con dos modos **Hypershift**, un selector **Alt+Tab persistente** y soporte
 para el **tilt** de la rueda.
 
-El mismo conjunto de atajos está implementado en tres versiones equivalentes,
-cada una en su carpeta:
+El mismo conjunto de atajos está implementado en dos versiones activas
+(Windows y Linux), cada una en su carpeta. Hay además una versión AutoHotkey
+**deprecada** que ya no se mantiene:
 
 | Sistema | Carpeta | Tecnología |
 |---------|---------|------------|
-| **Windows** (recomendada) | [`windows-python/`](windows-python/) | Python + `ctypes` — **sin AutoHotkey** |
-| **Windows** (original) | [`windows-ahk/`](windows-ahk/) | AutoHotkey v2 |
+| **Windows** | [`windows-python/`](windows-python/) | Python + `ctypes` — **sin AutoHotkey** |
+| ~~Windows (original)~~ ⛔ deprecada | [`windows-ahk/`](windows-ahk/) | AutoHotkey v2 — congelada en v1.1.0 |
 | **Linux** (Wayland/X11) | [`linux/`](linux/) | Python + `evdev`/`uinput` |
 
 ```
-├── windows-python/          ← versión recomendada para Windows
+├── windows-python/          ← versión para Windows
 │   ├── naga_macros_win.py       el demonio de macros
 │   ├── NagaV2_Macros_Win.vbs    lanzador (doble clic, sin consola)
 │   ├── autoarranque.ps1         activa/desactiva el inicio con Windows
 │   └── NagaV2_atajos.png        guía de atajos (la abre el Botón 5)
-├── windows-ahk/
+├── windows-ahk/             ⛔ DEPRECADA (congelada en v1.1.0, no se actualiza)
 │   ├── NagaV2_Macros.ahk
 │   └── NagaV2_atajos.png
 ├── linux/
 │   ├── naga_macros.py
 │   ├── naga-macros.service      unidad systemd (autoarranque)
 │   └── NagaV2_atajos.png
-└── generar_guia_atajos.py   ← regenera la imagen en las 3 carpetas
+├── generar_guia_atajos.py   ← regenera la imagen en windows-python/ y linux/
+└── CHANGELOG.md             ← versión e historial de cambios
 ```
 
 > La imagen está repetida a propósito en cada carpeta: el **Botón 5** la abre
 > con una ruta relativa al script, así cada versión es autocontenida.
 
-> **¿Por qué dos versiones para Windows?** Algunos **anticheat** de juegos no
-> arrancan si detectan AutoHotkey, obligando a cerrarlo y reabrirlo cada vez.
-> La versión en Python es un proceso normal y hace exactamente lo mismo, así que
-> no hace falta estar activando y desactivando nada. El `.ahk` se mantiene para
-> quien lo prefiera; **usa una sola de las dos a la vez** (si no, cada tecla se
-> procesaría dos veces).
+> **⛔ La versión AutoHotkey está deprecada.** Algunos **anticheat** de juegos
+> no arrancan si detectan AutoHotkey, obligando a cerrarlo y reabrirlo cada vez;
+> por eso nació la versión en Python, que hace lo mismo como proceso normal y
+> la ha sustituido. `windows-ahk/` se conserva solo como referencia histórica,
+> congelada en la v1.1.0: no recibe macros nuevas ni arreglos.
 
 ---
 
@@ -273,7 +274,11 @@ documento, no el de toda la página. Si prefieres el numpad, pon
 
 ---
 
-## Windows — versión AutoHotkey (original)
+## Windows — versión AutoHotkey (⛔ deprecada)
+
+> **Deprecada desde la v1.1.0 — no se mantiene.** Usa la versión Python de
+> arriba. Esta sección queda solo como referencia histórica; el `.ahk` no
+> tendrá las macros ni los arreglos posteriores a la v1.1.0.
 
 ### Requisitos
 - [AutoHotkey **v2**](https://www.autohotkey.com/) (¡v2, no v1!).
@@ -390,11 +395,24 @@ Detalles de la unidad que conviene no cambiar a la ligera:
 
 ## Versión
 
-Cada script muestra su versión en el icono de la bandeja del sistema: al pasar
-el ratón por encima (tooltip) y en la primera línea del menú que se abre al
-hacer clic. Las tres implementaciones (Windows Python, Windows AHK y Linux)
-comparten el mismo número; cada versión publicada lleva su etiqueta `vX.Y.Z`
-en git.
+La versión y el historial de cambios viven en **[`CHANGELOG.md`](CHANGELOG.md)**,
+en la raíz del repo. Es la **fuente única**: los scripts (Windows Python y
+Linux) y la guía de atajos leen de ahí el número de la primera entrada
+`## [X.Y.Z]`. (El AHK deprecado tiene la suya fija en 1.1.0.)
+
+Dónde se ve: en el icono de la bandeja (tooltip y primera línea del menú que se
+abre al hacer clic) y en la cabecera de la guía de atajos.
+
+Para publicar una versión:
+
+1. Añade una entrada nueva arriba del todo en `CHANGELOG.md`.
+2. Regenera la guía: `python generar_guia_atajos.py`.
+3. Reinicia los scripts (y en Windows recompila el `.exe` si lo usas).
+4. Haz commit y etiqueta: `git tag vX.Y.Z`.
+
+> Los scripts buscan `CHANGELOG.md` en la carpeta **de arriba** de la suya: si
+> copias solo una carpeta fuera del repo, la versión aparecerá como `?`. El
+> `.exe` lleva su propia copia dentro.
 
 ---
 
@@ -407,9 +425,9 @@ La imagen `NagaV2_atajos.png` (la que abre el **Botón 5**) se genera con
 python generar_guia_atajos.py
 ```
 
-Escribe la imagen en **las tres carpetas** de una sola pasada
-(`windows-python/`, `windows-ahk/`, `linux/`), porque cada script la abre desde
-su propio directorio.
+Escribe la imagen en **las dos carpetas activas** de una sola pasada
+(`windows-python/` y `linux/`), porque cada script la abre desde su propio
+directorio. La copia de `windows-ahk/` (deprecada) ya no se regenera.
 
 Requiere Pillow (`pip install pillow`). Funciona en Windows y en Linux: si no
 encuentra la fuente *Segoe UI* usa una alternativa del sistema.
@@ -458,11 +476,22 @@ del archivo y vuelve a ejecutarlo.
 
 ```
 .
-├── NagaV2_Macros.ahk        # Windows (AutoHotkey v2)
-├── naga_macros.py           # Linux (Python evdev/uinput)
-├── naga-macros.service      # Linux: unidad systemd de usuario (autoarranque)
-├── generar_guia_atajos.ps1  # Genera la imagen NagaV2_atajos.png
-├── NagaV2_atajos.png        # Guía de atajos (la abre el Botón 5)
-├── CLAUDE.md                # Contexto para mantener el repo
+├── windows-python/
+│   ├── naga_macros_win.py      # Windows (Python + ctypes, sin AutoHotkey)
+│   ├── NagaV2_Macros_Win.vbs   # Lanzador sin consola
+│   ├── autoarranque.ps1        # Crea/quita el acceso directo de inicio
+│   ├── compilar_exe.ps1        # Compila el .exe (PyInstaller)
+│   ├── NagaV2_Macros.ico
+│   └── NagaV2_atajos.png
+├── windows-ahk/                # ⛔ DEPRECADA (congelada en v1.1.0)
+│   ├── NagaV2_Macros.ahk       # Windows (AutoHotkey v2)
+│   └── NagaV2_atajos.png
+├── linux/
+│   ├── naga_macros.py          # Linux (Python evdev/uinput)
+│   ├── naga-macros.service     # Unidad systemd de usuario (autoarranque)
+│   └── NagaV2_atajos.png
+├── generar_guia_atajos.py      # Genera las copias de NagaV2_atajos.png
+├── CHANGELOG.md                # Versión e historial de cambios (fuente única)
+├── CLAUDE.md                   # Contexto para mantener el repo
 └── README.md
 ```
