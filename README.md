@@ -14,17 +14,23 @@ cada una en su carpeta:
 
 ```
 ├── windows/
+│   ├── instalar.bat             ← doble clic: instala la app (menú Inicio, escritorio, autoarranque)
 │   ├── naga_macros_win.py       el demonio de macros
 │   ├── NagaV2_Macros_Win.vbs    lanzador (doble clic, sin consola)
-│   ├── autoarranque.ps1         activa/desactiva el inicio con Windows
-│   └── NagaV2_atajos.png        guía de atajos (la abre el Botón 5)
+│   └── NagaV2_atajos.png        guía de atajos (la muestra el Botón 5)
 ├── linux/
+│   ├── instalar.sh              ← instala la app (servicio + lanzador en el menú)
 │   ├── naga_macros.py
-│   ├── naga-macros.service      unidad systemd (autoarranque)
 │   └── NagaV2_atajos.png
 ├── generar_guia_atajos.py   ← regenera la imagen en windows/ y linux/
+├── generar_icono.py         ← regenera el icono de la app
 └── CHANGELOG.md             ← versión e historial de cambios
 ```
+
+**Instalación rápida:** en Windows, doble clic en `windows/instalar.bat`; en
+Linux, `linux/instalar.sh`. Aparece la app **Naga V2 Macros** (icono verde con
+una «N») en el menú Inicio / de aplicaciones: abrirla arranca las macros, y si
+se colgaron, las reinicia.
 
 > La imagen está repetida a propósito en cada carpeta: el **Botón 5** la abre
 > con una ruta relativa al script.
@@ -132,11 +138,36 @@ así que los anticheat de los juegos no la afectan.
   pip install pystray pillow
   ```
 
-### Uso
+### Instalar como aplicación
+
+Doble clic en **`windows/instalar.bat`**. Crea, con el icono de la app:
+
+- un acceso **Naga V2 Macros** en el **menú Inicio** y otro en el **escritorio**;
+- el **arranque automático** al iniciar sesión (lo hace `autoarranque.ps1`).
+
+No requiere administrador ni toca el registro. Si las macros dejan de
+responder, ábrelas desde el menú Inicio: como ya hay una en marcha, te ofrece
+**reiniciarla** (cierra la colgada y arranca una nueva).
+
+| Acción | Comando (desde `windows/`) |
+|--------|---------|
+| Instalar | `instalar.bat` (o `powershell -ExecutionPolicy Bypass -File instalar.ps1`) |
+| Sin acceso en el escritorio | `instalar.bat -SinEscritorio` |
+| Sin autoarranque | `instalar.bat -SinAutoarranque` |
+| Desinstalar | `instalar.bat -Desinstalar` |
+
+Los accesos del menú y del escritorio abren el `.exe` si lo compilaste (ver más
+abajo) y si no el lanzador `.vbs`. **Si compilas el `.exe` después, o mueves el
+repo, vuelve a ejecutar el instalador:** los accesos guardan rutas absolutas.
+Para anclarlo: clic derecho sobre **Naga V2 Macros** en el menú Inicio →
+**Anclar a Inicio** / **Anclar a la barra de tareas** (Windows no permite
+hacerlo por software).
+
+### Uso sin instalar
 Doble clic en **`windows/NagaV2_Macros_Win.vbs`** (arranca sin ventana
 de consola).
 
-Si instalaste `pystray`, aparece un icono verde en la bandeja con el menú
+Si instalaste `pystray`, aparece el icono de la app en la bandeja con el menú
 *Abrir guía de atajos* / *Reiniciar* / *Salir*. Sin él funciona igual, pero para
 cerrarlo tendrás que finalizar `pythonw.exe` en el Administrador de tareas.
 
@@ -161,7 +192,8 @@ python windows/naga_macros_win.py
 
 ### Arranque automático con Windows
 
-Desde la carpeta `windows/`:
+Lo activa el instalador. Para gestionarlo por separado, desde la carpeta
+`windows/`:
 
 ```bash
 powershell -ExecutionPolicy Bypass -File autoarranque.ps1
@@ -183,6 +215,9 @@ permisos de administrador ni toca el registro.
 También puedes hacerlo a mano: `Win + R` → `shell:startup` → y copiar ahí un
 acceso directo de `NagaV2_Macros_Win.vbs`.
 
+> El autoarranque usa el lanzador `.vbs` aunque exista el `.exe`: el script
+> arranca al instante y el `.exe` *onefile* tarda unos segundos.
+
 ### Ejecutable (.exe) y menú de Inicio
 
 Si prefieres un ejecutable en vez de lanzar el script, se compila con:
@@ -195,15 +230,8 @@ Genera `NagaV2_Macros_Win.exe` (un solo archivo, sin consola, con la guía de
 atajos incrustada). **No se versiona** — está en `.gitignore` porque es un
 artefacto; recompílalo tras editar el `.py`.
 
-Para que aparezca en el menú de Inicio, copia un acceso directo del `.exe` a:
-
-```
-%APPDATA%\Microsoft\Windows\Start Menu\Programs
-```
-
-Después, para fijarlo entre los iconos anclados: clic derecho sobre él en el
-menú de Inicio → **Anclar a Inicio**. Ese último paso hay que hacerlo a mano:
-Windows no permite anclar por software desde Windows 10 1607.
+Para que el menú Inicio y el escritorio abran el `.exe`, vuelve a ejecutar
+`instalar.bat` después de compilarlo.
 
 > En modo *onefile* el primer arranque tarda unos segundos: el `.exe` se
 > descomprime en una carpeta temporal. El script `.py` arranca al instante, por
@@ -212,8 +240,9 @@ Windows no permite anclar por software desde Windows 10 1607.
 ### Una sola instancia a la vez
 
 El programa toma un *mutex* con nombre al arrancar: si ya hay una instancia
-(da igual si es el `.py` o el `.exe`), la segunda avisa con un cuadro de
-diálogo y se cierra. Sin esto, dos instancias instalan dos juegos de hooks y
+(da igual si es el `.py` o el `.exe`), la segunda pregunta con un cuadro de
+diálogo si quieres **reiniciar** la que está en marcha (útil si dejó de
+responder); si dices que no, se cierra sin hacer nada. Sin esto, dos instancias instalan dos juegos de hooks y
 cada pulsación se procesa dos veces.
 
 ### Ajustes
@@ -296,7 +325,7 @@ sudo -E python3 linux/naga_macros.py
 ```
 Al arrancar imprime los dispositivos detectados (el Naga debe aparecer, y la
 interfaz de ratón marcada como `(capturado)`). Si `pystray` y `Pillow` están
-instalados, aparece un ícono circular en la bandeja:
+instalados, aparece el ícono de la app en la bandeja:
 - **Verde** → ratón detectado y macros activos.
 - **Naranja** → esperando que el ratón se conecte.
 
@@ -325,8 +354,30 @@ abre la imagen con el visor del sistema. Probado en GNOME sobre X11.
    sudo udevadm control --reload-rules && sudo udevadm trigger
    ```
 
+### Instalar como aplicación
+
+```bash
+linux/instalar.sh
+```
+
+Sin `sudo` (antes haz los dos pasos de *Ejecutar sin `sudo`*). Instala:
+
+- el **servicio systemd de usuario**, con las rutas reales del repo y del
+  intérprete: las macros arrancan solas al iniciar sesión;
+- el **icono** y el lanzador **Naga V2 Macros** en el menú de aplicaciones.
+  Abrirlo **(re)arranca las macros** y avisa con una notificación: úsalo si se
+  cerraron o dejaron de responder. Con clic derecho (en el dock, si lo anclas)
+  tiene *Ver la guía de atajos* y *Detener las macros*.
+
+El intérprete debe tener `evdev` (y `pystray`/`Pillow` para la bandeja). Por
+defecto reutiliza el del servicio ya instalado o el `python3` del `PATH`; para
+elegir otro: `PYTHON=~/miniconda3/bin/python3 linux/instalar.sh`.
+Desinstalar: `linux/instalar.sh --desinstalar`. Si mueves el repo, vuelve a
+ejecutarlo.
+
 ### Arranque automático (servicio systemd de usuario)
-El repo incluye la unidad lista: **`linux/naga-macros.service`**.
+Lo instala `instalar.sh` (arriba). Para hacerlo a mano, el repo incluye la
+unidad: **`linux/naga-macros.service`**.
 
 ```bash
 cp linux/naga-macros.service ~/.config/systemd/user/
@@ -404,6 +455,23 @@ del archivo y vuelve a ejecutarlo.
 
 ---
 
+## Regenerar el icono
+
+El icono de la app (círculo verde con una «N») se genera con
+**`generar_icono.py`**, en la raíz del repo:
+
+```bash
+python generar_icono.py
+```
+
+Escribe `windows/NagaV2_Macros.ico` (ejecutable y accesos directos),
+`windows/NagaV2_Macros.png` (bandeja) y en `linux/` el PNG del lanzador y la
+variante naranja de "esperando ratón". La «N» se dibuja como polígono, así sale
+igual en cualquier sistema. Tras regenerarlo: recompila el `.exe` y vuelve a
+ejecutar el instalador.
+
+---
+
 ## Diferencias Windows ↔ Linux
 
 | Atajo | Windows | Linux (notas) |
@@ -444,16 +512,21 @@ del archivo y vuelve a ejecutarlo.
 .
 ├── windows/
 │   ├── naga_macros_win.py      # Windows (Python + ctypes)
+│   ├── instalar.bat / .ps1     # Instala la app: menú Inicio, escritorio, autoarranque
 │   ├── NagaV2_Macros_Win.vbs   # Lanzador sin consola
 │   ├── autoarranque.ps1        # Crea/quita el acceso directo de inicio
 │   ├── compilar_exe.ps1        # Compila el .exe (PyInstaller)
-│   ├── NagaV2_Macros.ico
+│   ├── NagaV2_Macros.ico / .png  # Icono (lo genera generar_icono.py)
 │   └── NagaV2_atajos.png
 ├── linux/
 │   ├── naga_macros.py          # Linux (Python evdev/uinput)
-│   ├── naga-macros.service     # Unidad systemd de usuario (autoarranque)
+│   ├── instalar.sh             # Instala la app: servicio + icono + lanzador
+│   ├── lanzar.sh               # Lo ejecuta el lanzador: (re)arranca el servicio
+│   ├── naga-macros.service     # Unidad systemd de usuario (plantilla)
+│   ├── NagaV2_Macros*.png      # Icono activo / esperando (generar_icono.py)
 │   └── NagaV2_atajos.png
 ├── generar_guia_atajos.py      # Genera las copias de NagaV2_atajos.png
+├── generar_icono.py            # Genera el icono de la app
 ├── CHANGELOG.md                # Versión e historial de cambios (fuente única)
 ├── CLAUDE.md                   # Contexto para mantener el repo
 └── README.md

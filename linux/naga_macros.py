@@ -130,13 +130,20 @@ REL_WHEEL_HI = getattr(e, "REL_WHEEL_HI_RES", None)
 REL_HWHEEL_HI = getattr(e, "REL_HWHEEL_HI_RES", None)
 
 if _HAS_TRAY:
-    def _make_tray_icon(color):
-        img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
-        ImageDraw.Draw(img).ellipse([4, 4, 60, 60], fill=color)
-        return img
+    def _make_tray_icon(archivo, color):
+        """Icono de la app (lo genera generar_icono.py). Si falta el PNG, un
+        circulo del mismo color, para no impedir el arranque."""
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), archivo)
+        try:
+            return Image.open(ruta).convert("RGBA")
+        except OSError:
+            img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+            ImageDraw.Draw(img).ellipse([4, 4, 60, 60], fill=color)
+            return img
 
-    _ICON_ACTIVE  = _make_tray_icon((50, 200, 50, 255))   # verde: activo
-    _ICON_WAITING = _make_tray_icon((220, 130, 0, 255))   # naranja: esperando
+    # verde: activo / naranja: esperando raton
+    _ICON_ACTIVE  = _make_tray_icon("NagaV2_Macros.png", (68, 214, 44, 255))
+    _ICON_WAITING = _make_tray_icon("NagaV2_Macros_espera.png", (230, 140, 0, 255))
 
 
 # ============================================================

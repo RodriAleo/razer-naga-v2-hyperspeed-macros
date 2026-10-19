@@ -10,6 +10,22 @@ regenera la guía (`python generar_guia_atajos.py`), haz commit y etiqueta
 macro nueva o cambiada; MAYOR = cambio que obliga a reconfigurar algo
 (Synapse, rutas, autoarranque).
 
+## [2.2.0] - 2026-10-19
+
+### Añadido
+- Icono nuevo de la app (círculo verde con una «N»), generado con
+  `generar_icono.py`. Se usa en el `.exe`, los accesos directos, el lanzador de
+  Linux y la bandeja (en Linux, naranja mientras espera al ratón).
+- Instalador de Windows (`windows/instalar.bat`): accesos con icono en el menú
+  Inicio y el escritorio, más el arranque automático.
+- Instalador de Linux (`linux/instalar.sh`): servicio systemd, icono y lanzador
+  "Naga V2 Macros" en el menú de aplicaciones; abrirlo (re)arranca las macros.
+- Windows: abrir la app con otra instancia en marcha ofrece reiniciarla (útil
+  si dejó de responder).
+
+### Cambiado
+- El acceso directo del autoarranque de Windows usa el icono de la app.
+
 ## [2.1.0] - 2026-10-16
 
 ### Añadido

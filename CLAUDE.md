@@ -8,9 +8,10 @@ Hay **dos implementaciones equivalentes** (Windows y Linux, ambas en Python)
 que deben mantenerse sincronizadas, cada una en su carpeta:
 
 ```
-├── windows/          naga_macros_win.py · NagaV2_Macros_Win.vbs · autoarranque.ps1 · compilar_exe.ps1 · NagaV2_atajos.png
-├── linux/            naga_macros.py · naga-macros.service · NagaV2_atajos.png
+├── windows/          naga_macros_win.py · instalar.bat/.ps1 · NagaV2_Macros_Win.vbs · autoarranque.ps1 · compilar_exe.ps1 · NagaV2_Macros.ico/.png · NagaV2_atajos.png
+├── linux/            naga_macros.py · instalar.sh · lanzar.sh · naga-macros.service · NagaV2_Macros(_espera).png · NagaV2_atajos.png
 ├── generar_guia_atajos.py   (genera la imagen en windows/ y linux/)
+├── generar_icono.py         (genera el icono de la app en windows/ y linux/)
 └── CHANGELOG.md             (versión + historial: fuente única, ver "Versionado")
 ```
 
@@ -18,11 +19,15 @@ que deben mantenerse sincronizadas, cada una en su carpeta:
 |---------|---------|------------------------|
 | `windows/naga_macros_win.py` | Windows (Python + `ctypes`) | "Reiniciar" en el menú de la bandeja (o cerrar y volver a lanzar el `.vbs`) |
 | `linux/naga_macros.py` | Linux Wayland/X11 (Python `evdev`/`uinput`) | `systemctl --user restart naga-macros` (o `sudo -E python3 linux/naga_macros.py`) |
+| `windows/instalar.bat` / `instalar.ps1` | Windows — instala la app: accesos con icono en menú Inicio y escritorio + autoarranque | Doble clic en el `.bat`; `-Desinstalar`, `-SinEscritorio`, `-SinAutoarranque` |
+| `linux/instalar.sh` | Linux — instala la app: servicio systemd + icono + lanzador `.desktop` | `linux/instalar.sh` (`--desinstalar`; `PYTHON=...` para el intérprete) |
+| `linux/lanzar.sh` | Linux — lo ejecuta el lanzador del menú: `restart` del servicio + notificación | — |
 | `windows/NagaV2_Macros_Win.vbs` | Windows — lanzador sin consola (`pythonw`) | Doble clic |
 | `windows/autoarranque.ps1` | Windows — crea/borra el acceso directo en `shell:startup` | `-Estado` para consultar, `-Quitar` para desactivar |
 | `linux/naga-macros.service` | Linux — unidad systemd de usuario (autoarranque) | `cp` a `~/.config/systemd/user/`, ajustar `ExecStart`, `enable --now` |
 | `NagaV2_atajos.png` (×2) | Guía de atajos visual (la abre el Botón 5) | Se **regenera** con `generar_guia_atajos.py` |
 | `generar_guia_atajos.py` | Generador de la imagen (Pillow, multiplataforma) | `python generar_guia_atajos.py` |
+| `generar_icono.py` | Generador del icono de la app (`.ico` + PNG de bandeja/lanzador) | `python generar_icono.py` |
 | `README.md` | Documentación de usuario | — |
 
 > **La imagen está duplicada a propósito** en `windows/` y `linux/`: cada
@@ -279,6 +284,15 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   `python.exe`, rompiendo el zoom por aplicación; además saldría en el Alt+Tab
   del Botón 1. Si falta tkinter o la imagen no carga, `guia_mostrar()` cae al
   visor del sistema (`os.startfile`) y se avisa por consola.
+- **Abrir la app con otra instancia en marcha → ofrecer reiniciarla:** la
+  instancia que toma el mutex escribe su PID en `%TEMP%\NagaV2_Macros.pid`. Si
+  `tomar_instancia()` falla, `main()` pregunta (MessageBox Sí/No) y
+  `cerrar_instancia_previa()` hace `TerminateProcess` sobre ese PID — **solo si
+  el ejecutable es `python.exe`/`pythonw.exe`/`NagaV2_Macros_Win.exe`**
+  (`EXES_PROPIOS`): el PID del archivo puede haberse reutilizado si la vieja
+  murió sin borrarlo. Luego `soltar_modificadores()` libera Alt/Ctrl/Shift que
+  la colgada pudo dejar pulsados. Es el mecanismo de "si se rompe, ábrela otra
+  vez" del menú Inicio.
 - **Reiniciar desde la bandeja (`relanzar()`):** el orden es **cerrar primero**
   (icono, hooks, modificadores colgados) y **lanzar la instancia nueva después**.
   Si se solapan, ambas instalan hooks y gana la que Windows tenga primera en la
@@ -374,6 +388,28 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
     ~250 ms de retardo.
   - Requiere `DISPLAY` (la unidad systemd lo hereda de la sesión gráfica). Sin
     tkinter/`DISPLAY`, `guia_mostrar()` cae a `xdg-open`.
+- **Icono de la app (`generar_icono.py`):** círculo verde con una «N» y tres
+  puntos. La «N» es un **polígono**, no texto: con una fuente cambiaría según el
+  SO. Genera `windows/NagaV2_Macros.ico` (16–256 px, lo usan el `.exe` y los
+  accesos directos) y `NagaV2_Macros.png` (bandeja; en Linux también el
+  lanzador) + `linux/NagaV2_Macros_espera.png` (naranja, "esperando ratón").
+  Las bandejas cargan esos PNG y, si faltan, dibujan un círculo del mismo
+  color (no impedir el arranque). En Windows el PNG va **dentro del `.exe`**
+  (`--add-data` en `compilar_exe.ps1`).
+- **Instaladores:**
+  - Windows `instalar.ps1`: accesos `Naga V2 Macros.lnk` en `Programs` y
+    `Desktop` (al `.exe` si existe, si no `wscript.exe` + `.vbs`), con
+    `IconLocation` al `.ico`; el autoarranque lo delega en `autoarranque.ps1`,
+    que **prefiere el `.vbs`** (el `.exe` onefile tarda en arrancar). Los
+    `.ps1`/`.bat` se mantienen **solo ASCII** (PowerShell 5 lee sin BOM como ANSI).
+  - Linux `instalar.sh`: copia `naga-macros.service` a `~/.config/systemd/user/`
+    reescribiendo `ExecStart` con rutas reales (intérprete: `$PYTHON` > el de la
+    unidad ya instalada > `python3`; exige `evdev`), `enable` + `restart`, icono en
+    `~/.local/share/icons/hicolor/256x256/apps/naga-macros.png` y
+    `~/.local/share/applications/naga-macros.desktop`. El lanzador ejecuta
+    `lanzar.sh` → **`restart`** (no `start`): si las macros están colgadas pero
+    vivas, `start` no haría nada. Acciones del `.desktop`: guía y detener.
+  - Ambos guardan **rutas absolutas**: si se mueve el repo, re-ejecutarlos.
 - **Grab de dispositivos en Linux (crítico):**
   El Naga V2 HS aparece como **5 interfaces** separadas en `/dev/input/`:
   `Mouse`, `Keyboard`, `Naga V2 HS`, `System Control`, `Consumer Control`.
@@ -439,7 +475,7 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
   archivos). Flags: `-Estado` consulta, `-Quitar` desactiva. **Guarda una ruta
   absoluta:** si se mueve el repo, hay que re-ejecutarlo.
 - **Linux:** servicio systemd **de usuario**, versionado en el repo como
-  `linux/naga-macros.service` (instrucciones en `README.md`). Es de
+  `linux/naga-macros.service` (plantilla; la instala `linux/instalar.sh`). Es de
   usuario y no de sistema a propósito: el ícono de bandeja y la inyección de
   teclas necesitan la sesión gráfica. Tres ajustes que no hay que cambiar sin
   entender por qué:
@@ -453,6 +489,8 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
     debe quedarse cerrado.
   - `ExecStart` debe apuntar al intérprete que tenga `evdev`/`pystray`/`Pillow`
     (si es conda o venv, a ESE python). La copia instalada vive en
-    `~/.config/systemd/user/` y **no** se actualiza sola al cambiar la del repo.
+    `~/.config/systemd/user/` y **no** se actualiza sola al cambiar la del repo:
+    re-ejecutar `linux/instalar.sh` (reescribe `ExecStart`; si se edita la
+    plantilla, su línea `ExecStart=` debe seguir empezando la línea).
   - Tras editar `naga_macros.py`: `systemctl --user restart naga-macros`.
     Ver log en vivo: `journalctl --user -u naga-macros -f`.

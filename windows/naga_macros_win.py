@@ -50,6 +50,7 @@ import sys
 import ctypes
 import threading
 import subprocess
+import tempfile
 from ctypes import wintypes
 from time import monotonic, sleep
 
@@ -271,6 +272,10 @@ kernel32.QueryFullProcessImageNameW.argtypes = (
     wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
     ctypes.POINTER(wintypes.DWORD))
 kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+kernel32.TerminateProcess.restype = wintypes.BOOL
+kernel32.TerminateProcess.argtypes = (wintypes.HANDLE, wintypes.UINT)
+kernel32.WaitForSingleObject.restype = wintypes.DWORD
+kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
 
 # Marca propia: los eventos que inyectamos llevan esta firma en dwExtraInfo, para
 # que nuestro propio hook los ignore y no se realimente (bucle infinito).
@@ -889,10 +894,15 @@ class HookLoop:
 #  Icono de bandeja (opcional: pystray + Pillow)
 # ============================================================
 def _tray_image(color):
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.ellipse((6, 6, 58, 58), fill=color)
-    return img
+    """Icono de la app (NagaV2_Macros.png, lo genera generar_icono.py; el .exe
+    lo lleva dentro). Si falta, un circulo del mismo color."""
+    try:
+        return Image.open(_recurso("NagaV2_Macros.png")).convert("RGBA")
+    except OSError:
+        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.ellipse((6, 6, 58, 58), fill=color)
+        return img
 
 
 # ============================================================
@@ -907,6 +917,15 @@ NOMBRE_MUTEX = r"Local\NagaV2MacrosHyperspeed"
 ERROR_ALREADY_EXISTS = 183
 _mutex = None
 
+# PID de la instancia que tiene el mutex, para poder cerrarla si se cuelga
+# (al abrir la app con otra ya en marcha se ofrece reiniciarla).
+PID_PATH = os.path.join(tempfile.gettempdir(), "NagaV2_Macros.pid")
+PROCESS_TERMINATE = 0x0001
+SYNCHRONIZE = 0x00100000
+# Solo se cierra un proceso con uno de estos nombres: el PID del archivo podria
+# haberse reutilizado para otro programa si la instancia vieja murio sin borrarlo.
+EXES_PROPIOS = ("python.exe", "pythonw.exe", "nagav2_macros_win.exe")
+
 
 def tomar_instancia(espera=3.0):
     """Reserva la instancia unica. Reintenta un poco: al usar "Reiniciar" la
@@ -917,12 +936,64 @@ def tomar_instancia(espera=3.0):
         h = kernel32.CreateMutexW(None, True, NOMBRE_MUTEX)
         if h and ctypes.get_last_error() != ERROR_ALREADY_EXISTS:
             _mutex = h
+            try:
+                with open(PID_PATH, "w") as f:
+                    f.write(str(os.getpid()))
+            except OSError:
+                pass
             return True
         if h:
             kernel32.CloseHandle(h)
         if monotonic() >= limite:
             return False
         sleep(0.25)
+
+
+def _borrar_pid():
+    """Borra el archivo de PID si es el nuestro (el relevo de "Reiniciar" ya
+    pudo haber escrito el suyo)."""
+    try:
+        with open(PID_PATH) as f:
+            if f.read().strip() == str(os.getpid()):
+                os.remove(PID_PATH)
+    except OSError:
+        pass
+
+
+def cerrar_instancia_previa():
+    """Cierra a la fuerza la instancia que tiene el mutex (p. ej. colgada).
+    Devuelve True si la cerro."""
+    try:
+        with open(PID_PATH) as f:
+            pid = int(f.read().strip())
+    except (OSError, ValueError):
+        return False
+    h = kernel32.OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE
+                             | PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not h:
+        return False
+    try:
+        buf = ctypes.create_unicode_buffer(512)
+        tam = wintypes.DWORD(len(buf))
+        if not kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(tam)):
+            return False
+        if os.path.basename(buf.value).lower() not in EXES_PROPIOS:
+            return False
+        if not kernel32.TerminateProcess(h, 1):
+            return False
+        kernel32.WaitForSingleObject(h, 3000)
+        return True
+    finally:
+        kernel32.CloseHandle(h)
+
+
+def soltar_modificadores():
+    """Una instancia cerrada a la fuerza a mitad de gesto (selector Alt+Tab,
+    zoom...) puede dejar Alt/Ctrl/Shift pulsados: se sueltan los que consten
+    pulsados."""
+    for vk in ("MENU", "CONTROL", "SHIFT"):
+        if user32.GetAsyncKeyState(VK[vk]) & 0x8000:
+            key_up(VK[vk])
 
 
 def soltar_instancia():
@@ -1010,19 +1081,33 @@ def main():
     # Una sola instancia: con dos, cada tecla se procesaria dos veces.
     if not tomar_instancia():
         print("Ya hay una instancia de las macros en ejecucion.")
-        # Con --noconsole no hay donde imprimir: avisar con un cuadro de dialogo
-        # (MB_ICONINFORMATION), si no el doble clic pareceria no hacer nada.
+        # Abrir la app con otra ya en marcha suele ser porque algo fallo: se
+        # ofrece reiniciarla. Con --noconsole no hay donde imprimir, por eso un
+        # cuadro de dialogo (MB_YESNO | MB_ICONQUESTION; IDYES = 6).
+        titulo = f"Naga V2 Macros v{VERSION}"
         try:
-            user32.MessageBoxW(
+            resp = user32.MessageBoxW(
                 None,
-                "Las macros del Naga V2 ya estan en ejecucion." 
-                "\n\n"
-                "Busca el icono verde en la bandeja del sistema "
-                "(junto al reloj).",
-                f"Naga V2 Macros v{VERSION}", 0x40)
+                "Las macros del Naga V2 ya estan en ejecucion "
+                "(icono verde en la bandeja, junto al reloj).\n\n"
+                "¿Quieres reiniciarlas? Util si dejaron de responder.",
+                titulo, 0x04 | 0x20)
         except Exception:
-            pass
-        return
+            return
+        if resp != 6:
+            return
+        if not (cerrar_instancia_previa() and tomar_instancia()):
+            try:
+                user32.MessageBoxW(
+                    None,
+                    "No pude cerrar la instancia anterior.\n\n"
+                    "Cierrala desde el Administrador de tareas "
+                    "(python/pythonw o NagaV2_Macros_Win) y vuelve a abrir "
+                    "la app.", titulo, 0x30)
+            except Exception:
+                pass
+            return
+        soltar_modificadores()
 
     # Prioridad alta: reduce la latencia de respuesta de las macros.
     try:
@@ -1069,6 +1154,7 @@ def main():
     macros.alttab_close()
     macros.scroll_stop()
     soltar_instancia()
+    _borrar_pid()
 
 
 if __name__ == "__main__":
