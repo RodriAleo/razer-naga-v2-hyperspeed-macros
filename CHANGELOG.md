@@ -10,6 +10,18 @@ regenera la guía (`python generar_guia_atajos.py`), haz commit y etiqueta
 macro nueva o cambiada; MAYOR = cambio que obliga a reconfigurar algo
 (Synapse, rutas, autoarranque).
 
+## [2.2.1] - 2026-10-21
+
+### Corregido
+- Linux: la guía del Botón 5 salía vacía si Pillow estaba instalado sin
+  `PIL.ImageTk` (en Debian/Ubuntu viene aparte, `python3-pil.imagetk`). Ahora
+  usa el `PhotoImage` de Tk en ese caso, y `instalar.sh` avisa si falta.
+
+### Cambiado
+- Linux: la guía del Botón 5 es un 25 % más grande. `generar_guia_atajos.py`
+  la dibuja directamente a ese tamaño (`DESTINOS`: escala por carpeta), así el
+  texto sale nítido; la de Windows queda igual.
+
 ## [2.2.0] - 2026-10-19
 
 ### Añadido

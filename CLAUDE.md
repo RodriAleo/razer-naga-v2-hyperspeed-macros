@@ -359,7 +359,10 @@ benchmark (no son el problema): `app_en_foco()` sin caché = **0,03 ms**, el
 - **Generador de la guía (`generar_guia_atajos.py`):** sustituyó al antiguo
   `generar_guia_atajos.ps1` (solo Windows, una sola carpeta). Ahora es Python +
   Pillow, corre también en Linux y escribe **las dos copias** de la imagen de
-  una pasada (lista `DESTINOS`). Pinta la versión
+  una pasada (`DESTINOS`: carpeta → escala). La copia de Linux se **dibuja** al
+  125 % (920×860 → 1150×1075) en vez de escalar el PNG al mostrarla: escalar
+  pixelaba el texto. Las coordenadas siguen siendo las del diseño de 920×860
+  (`_Lienzo` las multiplica). Pinta la versión
   del CHANGELOG en la cabecera. Los tamaños de fuente están en **puntos**, como
   en el original de PowerShell, y se convierten a píxeles a 96 ppp (`pt * 4/3`);
   si se cambian a píxeles directamente, la imagen deja de coincidir con la

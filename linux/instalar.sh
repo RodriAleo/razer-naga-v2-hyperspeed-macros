@@ -53,6 +53,8 @@ fi
     echo "Aviso: sin pystray/Pillow no habra icono en la bandeja (pip install pystray pillow)."
 "$py" -c 'import tkinter' 2>/dev/null ||
     echo "Aviso: sin tkinter el Boton 5 abrira la guia en el visor (sudo apt install python3-tk)."
+"$py" -c 'import PIL; from PIL import ImageTk' 2>/dev/null ||
+    echo "Aviso: sin PIL.ImageTk la guia del Boton 5 se escala peor (sudo apt install python3-pil.imagetk)."
 if [[ ! -w /dev/uinput ]]; then
     echo "Aviso: sin permiso de escritura en /dev/uinput el servicio no podra inyectar"
     echo "       teclas. Mira la seccion 'Ejecutar sin sudo' del README."

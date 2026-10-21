@@ -280,14 +280,22 @@ class GuiaOverlay:
 
     def _abrir(self, tk):
         """Imagen original: con Pillow si esta (escala con calidad); si no, el
-        PhotoImage de Tk (lee PNG en Tk 8.6+)."""
+        PhotoImage de Tk (lee PNG en Tk 8.6+). En Debian/Ubuntu ImageTk viene
+        en un paquete aparte (python3-pil.imagetk): sin el, la guia salia vacia."""
+        self._pil = False
         if _HAS_TRAY:                            # Pillow ya importado
+            try:
+                from PIL import ImageTk  # noqa: F401
+                self._pil = True
+            except ImportError:
+                print("Guia: falta PIL.ImageTk (sudo apt install python3-pil.imagetk); "
+                      "se escala con Tk")
+        if self._pil:
             return Image.open(self.ruta).convert("RGB")
         return tk.PhotoImage(file=self.ruta)
 
-    @staticmethod
-    def _escalar(tk, original, maximo):
-        if _HAS_TRAY:
+    def _escalar(self, tk, original, maximo):
+        if self._pil:
             from PIL import ImageTk
             im = original
             if im.height > maximo:

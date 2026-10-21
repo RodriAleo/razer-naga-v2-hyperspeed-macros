@@ -75,8 +75,10 @@ def _leer_version():
     sys.exit("CHANGELOG.md no tiene ninguna entrada '## [X.Y.Z]'.")
 TITULO = "RAZER NAGA V2 HYPERSPEED  -  Atajos"
 
-# Carpetas donde se deja la imagen (relativas a este archivo)
-DESTINOS = ["windows", "linux"]
+# Carpetas donde se deja la imagen (relativas a este archivo) y su escala
+# respecto del diseno de W x H. La imagen se DIBUJA a ese tamano (texto nitido);
+# escalar el PNG al mostrarlo lo dejaba pixelado.
+DESTINOS = {"windows": 1.0, "linux": 1.25}
 NOMBRE_IMAGEN = "NagaV2_atajos.png"
 
 # ---------------- ESTILO ----------------
@@ -95,11 +97,34 @@ CELDA_W = (W - 2 * M_IZQ - 2 * HUECO) // 3
 CELDA_H, V_HUECO = 92, 14
 
 
-def _fuente(tam_pt, negrita=False):
+class _Lienzo:
+    """ImageDraw que recibe coordenadas del diseno (W x H) y dibuja sobre una
+    imagen `escala` veces mayor. textbbox devuelve medidas del diseno."""
+
+    def __init__(self, img, escala):
+        self._d, self._s = ImageDraw.Draw(img), escala
+
+    def _xy(self, v):
+        return [round(c * self._s) for c in v]
+
+    def rectangle(self, xy, **kw):
+        self._d.rectangle(self._xy(xy), **kw)
+
+    def ellipse(self, xy, **kw):
+        self._d.ellipse(self._xy(xy), **kw)
+
+    def text(self, xy, texto, **kw):
+        self._d.text(tuple(self._xy(xy)), texto, **kw)
+
+    def textbbox(self, xy, texto, **kw):
+        return [c / self._s for c in self._d.textbbox(tuple(self._xy(xy)), texto, **kw)]
+
+
+def _fuente(tam_pt, negrita=False, escala=1.0):
     """Segoe UI si existe (Windows); si no, una sans-serif del sistema.
     Los tamanos vienen en puntos, como en el generador original: se pasan a
     pixeles a 96 ppp (1 pt = 4/3 px)."""
-    px = int(round(tam_pt * 4 / 3))
+    px = int(round(tam_pt * 4 / 3 * escala))
     candidatas = (
         ["C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf",
          "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -134,15 +159,15 @@ def _partir(d, texto, fuente, ancho_max):
     return lineas
 
 
-def generar():
-    img = Image.new("RGB", (W, H), BG)
-    d = ImageDraw.Draw(img)
+def _dibujar(escala):
+    img = Image.new("RGB", (round(W * escala), round(H * escala)), BG)
+    d = _Lienzo(img, escala)
 
-    f_titulo = _fuente(22, negrita=True)
-    f_cabeza = _fuente(13, negrita=True)
-    f_num    = _fuente(12, negrita=True)
-    f_celda  = _fuente(12)
-    f_fila   = _fuente(14)
+    f_titulo = _fuente(22, negrita=True, escala=escala)
+    f_cabeza = _fuente(13, negrita=True, escala=escala)
+    f_num    = _fuente(12, negrita=True, escala=escala)
+    f_celda  = _fuente(12, escala=escala)
+    f_fila   = _fuente(14, escala=escala)
 
     # --- cabecera ---
     d.rectangle([0, 0, W, 62], fill=VERDE)
@@ -185,17 +210,20 @@ def generar():
     # scripts (no se regenero al subir la version), se nota a simple vista.
     d.text((W - 24, 31), "v" + _leer_version(), font=f_cabeza, fill=NEGRO,
            anchor="rm")
+    return img
 
-    # --- guardar en las carpetas destino ---
+
+def generar():
+    # --- dibujar y guardar en las carpetas destino ---
     raiz = os.path.dirname(os.path.abspath(__file__))
     escritas = []
-    for carpeta in DESTINOS:
+    for carpeta, escala in DESTINOS.items():
         destino = os.path.join(raiz, carpeta)
         if not os.path.isdir(destino):
             print(f"Aviso: no existe la carpeta {carpeta}/ -- se omite")
             continue
         ruta = os.path.join(destino, NOMBRE_IMAGEN)
-        img.save(ruta, "PNG")
+        _dibujar(escala).save(ruta, "PNG")
         escritas.append(ruta)
 
     if not escritas:
